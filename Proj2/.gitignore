@@ -1,0 +1,14 @@
+# Ignore list
+
+# Data files - too big
+*.csv
+
+# Vim temp files
+*.swp
+
+# Archive
+*.zip
+
+# Raw data directory
+raw/
+
