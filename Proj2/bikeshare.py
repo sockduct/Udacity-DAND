@@ -1,19 +1,25 @@
+#!/usr/bin/env python3.6
 ## TODO: import all necessary packages and functions
 
 
-## Filenames
-chicago = 'chicago.csv'
-new_york_city = 'new_york_city.csv'
-washington = 'washington.csv'
+# Memory Map files:
+# import mmap
+# f = open('chicago.csv')
+# m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+# line = m.readline.decode(encoding='ascii')
+#
+# Filenames - use ALL CAPS for global constants
+CHI = 'chicago.csv'
+NYC = 'new_york_city.csv'
+WAS = 'washington.csv'
 
 
-def get_city():
-    '''Asks the user for a city and returns the filename for that city's bike share data.
+def get_city() -> str:
+    '''Asks the user for a city and returns the filename for that city's bike share
+       data.
 
-    Args:
-        none.
-    Returns:
-        (str) Filename for a city's bikeshare data.
+       Args:  None
+       Returns:  Filename for a city's bikeshare data.
     '''
     city = input('\nHello! Let\'s explore some US bikeshare data!\n'
                  'Would you like to see data for Chicago, New York, or Washington?\n')
@@ -230,5 +236,10 @@ def statistics():
         statistics()
 
 
-if __name__ == "__main__":
+    def main()
 	statistics()
+
+
+if __name__ == '__main__':
+    main()
+
