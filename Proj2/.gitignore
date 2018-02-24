@@ -12,3 +12,6 @@
 # Raw data directory
 raw/
 
+# Python object code cache
+__pycache__/
+
