@@ -2,13 +2,19 @@
 
 ## TODO: import all necessary packages and functions
 from calendar import monthrange
+##from collections import namedtuple
+from csv import DictReader
 import datetime
+from typing import List, Tuple, Union
 
 
 # Filenames - use ALL CAPS for global constants
 CHI = 'chicago.csv'
 NYC = 'new_york_city.csv'
 WAS = 'washington.csv'
+
+
+##TimeRec = namedtuple('TimeRec', ['year', 'month', 'date', 'hour', 'minute', 'second'])
 
 
 def get_city() -> str:
@@ -82,7 +88,7 @@ def get_month() -> str:
                   'or 6) June.')
 
 
-def get_day(month) -> int:
+def get_day(month: Union[int, str]) -> int:
     '''Asks the user for a day and returns the specified day.
 
        Args:  month - targetted month, accepts int(1 - 12) or str
@@ -95,10 +101,10 @@ def get_day(month) -> int:
               7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November',
               12: 'December'}
 
-    if type(month) is int and 1 <= month <= 12:
+    if isinstance(month, int) and 1 <= month <= 12:
         daymax = monthrange(year, month)[1]
         monthstr = months[month]
-    elif type(month) is str:
+    elif isinstance(month, str):
         if 'january'.startswith(month.lower()):
             daymax = monthrange(year, 1)[1]
             monthstr = months[1]
@@ -147,9 +153,9 @@ def get_day(month) -> int:
                     year, daymax))
         # TODO: handle raw input and complete function
         try:
-            day = int(day)
-            if 1 <= day <= daymax:
-                return day
+            dayint = int(day)
+            if 1 <= dayint <= daymax:
+                return dayint
         except ValueError:
             pass
 
@@ -157,7 +163,7 @@ def get_day(month) -> int:
 
 
 # Takes a significant amount of time to load the data - only do it once
-def load_city_file(city_file: str) -> list
+def load_city_file(city_file: str) -> List[str]:
     '''Opens city_file, loads all lines into a list and returns it.
 
        Args:  filename, assumed to be in current working directory
@@ -167,22 +173,44 @@ def load_city_file(city_file: str) -> list
 
     with open(city_file) as f:
         for line in f:
-            data.append(line)
+            data.append(line.strip())
 
     return data
 
 
 # Default to January (1) - June (6) as that's the range of data we have
-def popular_month(city_data: list, time_period=(1, 6): tuple -> str:
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the most popular month for start time?
-    '''
+def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6)) -> str:
     '''Determine month with highest number of start times within time_period.
+       Answer question:  What is the most popular month for start time?
 
        Args:  All data from the city file (city_data),
        Returns:  ...
     '''
-    # TODO: complete function
+    res = dict(jan=0, feb=0, mar=0, apr=0, may=0, jun=0)
+    data = DictReader(city_data)
+    timerec = set()
+
+    for line in data:
+        # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
+        # datetime.datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
+        # Use %I for 12 hour time vs. %H for 24 hour time
+        start_time = datetime.datetime.strptime(line['Start Time'], '%Y-%m-%d %H:%M:%S')
+        '''
+        for elmt in ['year', 'month', 'day', 'hour', 'minute', 'second']:
+            cur_elmt = elmt + '-' + str(getattr(start_time, elmt))
+            if cur_elmt not in timerec:
+                timerec.add(cur_elmt)
+        '''
+        end_time = datetime.datetime.strptime(line['End Time'], '%Y-%m-%d %H:%M:%S')
+        duration = line['Trip Duration']
+        start_sta = line['Start Station']
+        end_sta = line['End Station']
+        user_type = line['User Type']
+        gender = line['Gender']
+        birth_year = line['Birth Year']
+
+    # return '...'
+    return timerec
 
 
 def popular_day(city_data, time_period):
@@ -344,6 +372,11 @@ def statistics():
 
     # Display five lines of data at a time if user specifies that they would like to
     display_data()
+
+
+def test():
+    data = load_city_file(CHI)
+    print(popular_month(data))
 
 
 def main():
