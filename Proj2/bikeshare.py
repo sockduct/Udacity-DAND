@@ -179,16 +179,18 @@ def load_city_file(city_file: str) -> List[str]:
 
 
 # Default to January (1) - June (6) as that's the range of data we have
-def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6)) -> str:
+def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6),
+                  verbose: bool=False) -> Union[tuple, str]:
     '''Determine month with highest number of start times within time_period.
        Answer question:  What is the most popular month for start time?
 
        Args:  All data from the city file (city_data),
-       Returns:  ...
+       Returns:  month name or tuple of month names in case of tie(s)
     '''
-    res = dict(jan=0, feb=0, mar=0, apr=0, may=0, jun=0)
+    res = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+    months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June'}
     data = DictReader(city_data)
-    timerec = set()
+    ## timerec = set()
 
     for line in data:
         # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
@@ -200,7 +202,6 @@ def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6)) -> 
             cur_elmt = elmt + '-' + str(getattr(start_time, elmt))
             if cur_elmt not in timerec:
                 timerec.add(cur_elmt)
-        '''
         end_time = datetime.datetime.strptime(line['End Time'], '%Y-%m-%d %H:%M:%S')
         duration = line['Trip Duration']
         start_sta = line['Start Station']
@@ -208,16 +209,103 @@ def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6)) -> 
         user_type = line['User Type']
         gender = line['Gender']
         birth_year = line['Birth Year']
+        '''
 
-    # return '...'
-    return timerec
+        # Count
+        res[start_time.month] += 1
+
+    # Month with highest number of start times:
+    if verbose:
+        print('popular_month/results:  {}'.format(res))
+
+    # Filter?
+    if time_period == (1, 6):
+        month_val = max(res.values())
+        filt_res = res
+    else:
+        filt_res = {}
+        for k in res:
+            if time_period[0] <= k <= time_period[1]:
+                filt_res[k] = res[k]
+        month_val = max(res.values())
+
+    # Duplicates?
+    if len([v for v in filt_res.values() if v == month_val]) > 1:
+        mult_res = []
+        for k in res:
+            if res[k] == month_val:
+                mult_res.append(months[k])
+        return tuple(mult_res)
+    else:
+        for k in res:
+            if res[k] == month_val:
+                return months[k]
 
 
-def popular_day(city_data, time_period):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the most popular day of week (Monday, Tuesday, etc.) for start time?
+# Default to Monday (0) - Sunday (6)
+def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
+                verbose: bool=False) -> Union[tuple, str]:
+    '''Determine day with highest number of start times within time_period.
+       Answer question:  What is the most popular day of week (Monday, Tuesday, etc.)
+                         for start time?
+
+       Args:  All data from the city file (city_data),
+       Returns:  day name or tuple of day names in case of tie(s)
     '''
     # TODO: complete function
+    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+    days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
+            5: 'Saturday', 6: 'Sunday'}
+    data = DictReader(city_data)
+
+    for line in data:
+        # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
+        # datetime.datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
+        # Use %I for 12 hour time vs. %H for 24 hour time
+        start_time = datetime.datetime.strptime(line['Start Time'], '%Y-%m-%d %H:%M:%S')
+        '''
+        for elmt in ['year', 'month', 'day', 'hour', 'minute', 'second']:
+            cur_elmt = elmt + '-' + str(getattr(start_time, elmt))
+            if cur_elmt not in timerec:
+                timerec.add(cur_elmt)
+        end_time = datetime.datetime.strptime(line['End Time'], '%Y-%m-%d %H:%M:%S')
+        duration = line['Trip Duration']
+        start_sta = line['Start Station']
+        end_sta = line['End Station']
+        user_type = line['User Type']
+        gender = line['Gender']
+        birth_year = line['Birth Year']
+        '''
+
+        # Count
+        res[start_time.weekday()] += 1
+
+    # Month with highest number of start times:
+    if verbose:
+        print('popular_day/results:  {}'.format(res))
+
+    # Filter?
+    if time_period == (0, 6):
+        day_val = max(res.values())
+        filt_res = res
+    else:
+        filt_res = {}
+        for k in res:
+            if time_period[0] <= k <= time_period[1]:
+                filt_res[k] = res[k]
+        day_val = max(res.values())
+
+    # Duplicates?
+    if len([v for v in filt_res.values() if v == day_val]) > 1:
+        mult_res = []
+        for k in res:
+            if res[k] == day_val:
+                mult_res.append(days[k])
+        return tuple(mult_res)
+    else:
+        for k in res:
+            if res[k] == day_val:
+                return days[k]
 
 
 def popular_hour(city_data, time_period):
@@ -376,7 +464,11 @@ def statistics():
 
 def test():
     data = load_city_file(CHI)
-    print(popular_month(data))
+    print(popular_month(data, verbose=True))
+    print(popular_day(data, verbose=True))
+
+    data = load_city_file(WAS)
+    print(popular_month(data, verbose=True))
 
 
 def main():
