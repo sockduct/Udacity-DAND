@@ -4,7 +4,8 @@
 from calendar import monthrange
 ##from collections import namedtuple
 from csv import DictReader
-import datetime
+from datetime import datetime, date
+from time import time
 from typing import List, Tuple, Union
 
 
@@ -95,7 +96,7 @@ def get_day(month: Union[int, str]) -> int:
        Returns:  user selected day, validated by calendar.monthrange
     '''
     # Determine year dynamically - but in this case, data is only from 2017...
-    # year = datetime.date.today().year
+    # year = date.today().year
     year = 2017
     months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June',
               7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November',
@@ -163,17 +164,58 @@ def get_day(month: Union[int, str]) -> int:
 
 
 # Takes a significant amount of time to load the data - only do it once
-def load_city_file(city_file: str) -> List[str]:
-    '''Opens city_file, loads all lines into a list and returns it.
+def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
+    '''Opens city_file, loads using csv stdlib DictReader, returns as list.
 
        Args:  filename, assumed to be in current working directory
-       Returns:  all lines from filename
+       Returns:  list of results
     '''
-    data = []
 
+    # Read in CSV using column headers as keys
+    if verbose:
+        load_start = time()
+        print('Loading {}...'.format(city_file))
     with open(city_file) as f:
-        for line in f:
-            data.append(line.strip())
+        reader = DictReader(f)
+        data = list(reader)
+    if verbose:
+        print('Processed in {} seconds.'.format(time() - load_start))
+
+    # Convert column types from str to native where appropriate
+    if verbose:
+        conv_start = time()
+        print('Converting to native types...')
+    for row in data:
+        # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
+        # datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
+        # Use %I for 12 hour time vs. %H for 24 hour time
+        try:
+            row['Start Time'] = datetime.strptime(row['Start Time'], '%Y-%m-%d %H:%M:%S')
+        except ValueError as err:
+            print('Choked on start time:  {}'.format(row['Start Time']))
+        try:
+            row['End Time'] = datetime.strptime(row['End Time'], '%Y-%m-%d %H:%M:%S')
+        except ValueError as err:
+            print('Choked on end time:  {}'.format(row['End Time']))
+        try:
+            row['Trip Duration'] = int(row['Trip Duration'])
+        except ValueError as err:
+            print('Choked on trip duration:  {}'.format(row['Trip Duration']))
+        # These are strings so leave as is:
+        # row['Start Station']
+        # row['End Station']
+        # row['User Type']
+        # row['Gender']
+        try:
+            birth_year = row['Birth Year']
+            if birth_year:
+                row['Birth Year'] = int(float(birth_year))
+            else:
+                row['Birth Year']  = None
+        except ValueError as err:
+            print('Choked on birth year:  {}'.format(row['Birth Year']))
+    if verbose:
+        print('Processed in {} seconds.'.format(time() - conv_start))
 
     return data
 
@@ -189,30 +231,37 @@ def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6),
     '''
     res = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
     months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June'}
-    data = DictReader(city_data)
-    ## timerec = set()
+    rev_months = {'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6}
 
-    for line in data:
-        # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
-        # datetime.datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
-        # Use %I for 12 hour time vs. %H for 24 hour time
-        start_time = datetime.datetime.strptime(line['Start Time'], '%Y-%m-%d %H:%M:%S')
-        '''
-        for elmt in ['year', 'month', 'day', 'hour', 'minute', 'second']:
-            cur_elmt = elmt + '-' + str(getattr(start_time, elmt))
-            if cur_elmt not in timerec:
-                timerec.add(cur_elmt)
-        end_time = datetime.datetime.strptime(line['End Time'], '%Y-%m-%d %H:%M:%S')
-        duration = line['Trip Duration']
-        start_sta = line['Start Station']
-        end_sta = line['End Station']
-        user_type = line['User Type']
-        gender = line['Gender']
-        birth_year = line['Birth Year']
-        '''
+    # If time_period passed as strings, convert to ints:
+    tpstr = False
+    if isinstance(time_period[0], str):
+        tpstr = True
+        start = None
+        for month in ['january', 'february', 'march', 'april', 'may', 'june']:
+            if month.startswith(time_period[0].lower()):
+                start = rev_months[month]
+    if isinstance(time_period[1], str):
+        tpstr = True
+        end = None
+        for month in ['january', 'february', 'march', 'april', 'may', 'june']:
+            if month.startswith(time_period[0].lower()):
+                end = rev_months[month]
 
+    if not tpstr:
+        tpvalid = True if 1 <= time_period[0] <= 6 else False
+
+    if tpstr and start and stop:
+        time_period = start, stop
+    elif tpvalid:
+        pass  # So only raise ValueError in one place
+    else:
+        raise ValueError('time_period must be in the range of 1-6 or January..June, '
+                         'got {} - {}'.format(time_period[0], time_period[1]))
+
+    for line in city_data:
         # Count
-        res[start_time.month] += 1
+        res[line['Start Time'].month] += 1
 
     # Month with highest number of start times:
     if verbose:
@@ -256,29 +305,10 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
     res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
     days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
             5: 'Saturday', 6: 'Sunday'}
-    data = DictReader(city_data)
 
-    for line in data:
-        # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
-        # datetime.datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
-        # Use %I for 12 hour time vs. %H for 24 hour time
-        start_time = datetime.datetime.strptime(line['Start Time'], '%Y-%m-%d %H:%M:%S')
-        '''
-        for elmt in ['year', 'month', 'day', 'hour', 'minute', 'second']:
-            cur_elmt = elmt + '-' + str(getattr(start_time, elmt))
-            if cur_elmt not in timerec:
-                timerec.add(cur_elmt)
-        end_time = datetime.datetime.strptime(line['End Time'], '%Y-%m-%d %H:%M:%S')
-        duration = line['Trip Duration']
-        start_sta = line['Start Station']
-        end_sta = line['End Station']
-        user_type = line['User Type']
-        gender = line['Gender']
-        birth_year = line['Birth Year']
-        '''
-
+    for line in city_data:
         # Count
-        res[start_time.weekday()] += 1
+        res[line['Start Time'].weekday()] += 1
 
     # Month with highest number of start times:
     if verbose:
@@ -392,82 +422,82 @@ def statistics():
 
     # What is the most popular month for start time?
     if time_period == 'none':
-        start_time = time.time()
+        start_time = time()
         
         #TODO: call popular_month function and print the results
         
-        print("That took %s seconds." % (time.time() - start_time))
+        print("That took %s seconds." % (time() - start_time))
         print("Calculating the next statistic...")
 
     # What is the most popular day of week (Monday, Tuesday, etc.) for start time?
     if time_period == 'none' or time_period == 'month':
-        start_time = time.time()
+        start_time = time()
         
         # TODO: call popular_day function and print the results
         
-        print("That took %s seconds." % (time.time() - start_time))
+        print("That took %s seconds." % (time() - start_time))
         print("Calculating the next statistic...")    
 
-    start_time = time.time()
+    start_time = time()
 
     # What is the most popular hour of day for start time?
     # TODO: call popular_hour function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What is the total trip duration and average trip duration?
     # TODO: call trip_duration function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What is the most popular start station and most popular end station?
     # TODO: call popular_stations function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What is the most popular trip?
     # TODO: call popular_trip function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What are the counts of each user type?
     # TODO: call users function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What are the counts of gender?
     # TODO: call gender function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
-    start_time = time.time()
+    start_time = time()
 
     # What are the earliest (i.e. oldest user), most recent (i.e. youngest user), and
     # most popular birth years?
     # TODO: call birth_years function and print the results
 
-    print("That took %s seconds." % (time.time() - start_time))
+    print("That took %s seconds." % (time() - start_time))
 
     # Display five lines of data at a time if user specifies that they would like to
     display_data()
 
 
 def test():
-    data = load_city_file(CHI)
+    data = load_city_file(CHI, verbose=True)
     print(popular_month(data, verbose=True))
     print(popular_day(data, verbose=True))
 
-    data = load_city_file(WAS)
+    data = load_city_file(WAS, verbose=True)
     print(popular_month(data, verbose=True))
 
 
@@ -487,5 +517,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    test()
 
