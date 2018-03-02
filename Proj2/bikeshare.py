@@ -1,4 +1,8 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.6-64
+################################################################################
+# Need 64-bit Python 3.6+ (may work with 3.5)
+# With 32-bit Python will run out of memory
+################################################################################
 
 ## TODO: import all necessary packages and functions
 from calendar import monthrange
@@ -174,17 +178,18 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     # Read in CSV using column headers as keys
     if verbose:
         load_start = time()
-        print('Loading {}...'.format(city_file))
+        print('Loading {}...'.format(city_file), end='', flush=True)
     with open(city_file) as f:
         reader = DictReader(f)
         data = list(reader)
     if verbose:
-        print('Processed in {} seconds.'.format(time() - load_start))
+        print(' - Processed in {:.2f} seconds.'.format(time() - load_start))
 
     # Convert column types from str to native where appropriate
+    # Takes roughly three times as long as loading the file into the data structure
     if verbose:
         conv_start = time()
-        print('Converting to native types...')
+        print('Converting to native types...', end='', flush=True)
     for row in data:
         # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
         # datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
@@ -198,7 +203,7 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
         except ValueError as err:
             print('Choked on end time:  {}'.format(row['End Time']))
         try:
-            row['Trip Duration'] = int(row['Trip Duration'])
+            row['Trip Duration'] = float(row['Trip Duration'])
         except ValueError as err:
             print('Choked on trip duration:  {}'.format(row['Trip Duration']))
         # These are strings so leave as is:
@@ -211,11 +216,13 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
             if birth_year:
                 row['Birth Year'] = int(float(birth_year))
             else:
-                row['Birth Year']  = None
+                row['Birth Year'] = None
         except ValueError as err:
             print('Choked on birth year:  {}'.format(row['Birth Year']))
+        except KeyError as err:
+            row['Birth Year'] = None
     if verbose:
-        print('Processed in {} seconds.'.format(time() - conv_start))
+        print(' - Processed in {:.2f} seconds.'.format(time() - conv_start))
 
     return data
 
@@ -263,7 +270,7 @@ def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6),
         # Count
         res[line['Start Time'].month] += 1
 
-    # Month with highest number of start times:
+    # Optionally see calculated month data:
     if verbose:
         print('popular_month/results:  {}'.format(res))
 
@@ -301,7 +308,6 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
        Args:  All data from the city file (city_data),
        Returns:  day name or tuple of day names in case of tie(s)
     '''
-    # TODO: complete function
     res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
     days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
             5: 'Saturday', 6: 'Sunday'}
@@ -310,7 +316,7 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
         # Count
         res[line['Start Time'].weekday()] += 1
 
-    # Month with highest number of start times:
+    # Optionally see calculated day data:
     if verbose:
         print('popular_day/results:  {}'.format(res))
 
@@ -338,18 +344,112 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
                 return days[k]
 
 
-def popular_hour(city_data, time_period):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the most popular hour of day for start time?
+# Default to 0 - 23
+def popular_hour(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
+                 verbose: bool=False) -> Union[tuple, int]:
+    '''Determine hour with highest number of start times within time_period.
+       Answer question:  What is the most popular hour of the day (0, 1, ..., 23)
+                         for start time?
+
+       Args:  All data from the city file (city_data),
+       Returns:  hour name or tuple of hour names in case of tie(s)
     '''
-    # TODO: complete function
+    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+           11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0,
+           21: 0, 22: 0, 23: 0}
+    hours = {0: 'Midnight', 1: 'One AM', 2: 'Two AM', 3: 'Three AM', 4: 'Four AM',
+             5: 'Five AM', 6: 'Six AM', 7: 'Seven AM', 8: 'Eight AM', 9: 'Nine AM',
+             10: 'Ten AM', 11: 'Eleven AM', 12: 'Noon', 13: 'One PM', 14: 'Two PM',
+             15: 'Three PM', 16: 'Four PM', 17: 'Five PM', 18: 'Six PM',
+             19: 'Seven PM', 20: 'Eight PM', 21: 'Nine PM', 22: 'Ten PM',
+             23: 'Eleven PM'}
+
+    for line in city_data:
+        # Count
+        res[line['Start Time'].hour] += 1
+
+    # Optionally see calculated hour data:
+    if verbose:
+        print('popular_hour/results:  {}'.format(res))
+
+    # Filter?
+    if time_period == (0, 23):
+        hour_val = max(res.values())
+        filt_res = res
+    else:
+        filt_res = {}
+        for k in res:
+            if time_period[0] <= k <= time_period[1]:
+                filt_res[k] = res[k]
+        hour_val = max(res.values())
+
+    # Duplicates?
+    if len([v for v in filt_res.values() if v == hour_val]) > 1:
+        mult_res = []
+        for k in res:
+            if res[k] == hour_val:
+                mult_res.append(hours[k])
+        return tuple(mult_res)
+    else:
+        for k in res:
+            if res[k] == hour_val:
+                return hours[k]
 
 
-def trip_duration(city_data, time_period):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the total trip duration and average trip duration?
+# Default time_period?
+# Ideally should be able to do any time period filter - month, day, week, hour,
+# etc.  Perhaps make a time_period class?  Or too complex and just make
+# assumption on meaning???
+def trip_duration(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
+                 verbose: bool=False) -> Union[tuple, int]:
+    '''Determine total trip duration and average trip duration during time_period.
+       Answer question:  What is the total trip duration and average trip duration?
+                         (default/reasonable time_period???)
+
+       Args:  All data from the city file (city_data),
+       Returns:  total trip duration, average trip duration
+       Returns:  hour name or tuple of hour names in case of tie(s)
     '''
-    # TODO: complete function
+    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
+           11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0,
+           21: 0, 22: 0, 23: 0}
+    hours = {0: 'Midnight', 1: 'One AM', 2: 'Two AM', 3: 'Three AM', 4: 'Four AM',
+             5: 'Five AM', 6: 'Six AM', 7: 'Seven AM', 8: 'Eight AM', 9: 'Nine AM',
+             10: 'Ten AM', 11: 'Eleven AM', 12: 'Noon', 13: 'One PM', 14: 'Two PM',
+             15: 'Three PM', 16: 'Four PM', 17: 'Five PM', 18: 'Six PM',
+             19: 'Seven PM', 20: 'Eight PM', 21: 'Nine PM', 22: 'Ten PM',
+             23: 'Eleven PM'}
+
+    for line in city_data:
+        # Count
+        res[line['Start Time'].hour] += 1
+
+    # Optionally see calculated hour data:
+    if verbose:
+        print('popular_hour/results:  {}'.format(res))
+
+    # Filter?
+    if time_period == (0, 23):
+        hour_val = max(res.values())
+        filt_res = res
+    else:
+        filt_res = {}
+        for k in res:
+            if time_period[0] <= k <= time_period[1]:
+                filt_res[k] = res[k]
+        hour_val = max(res.values())
+
+    # Duplicates?
+    if len([v for v in filt_res.values() if v == hour_val]) > 1:
+        mult_res = []
+        for k in res:
+            if res[k] == hour_val:
+                mult_res.append(hours[k])
+        return tuple(mult_res)
+    else:
+        for k in res:
+            if res[k] == hour_val:
+                return hours[k]
 
 
 def popular_stations(city_data, time_period):
@@ -493,12 +593,12 @@ def statistics():
 
 
 def test():
-    data = load_city_file(CHI, verbose=True)
-    print(popular_month(data, verbose=True))
-    print(popular_day(data, verbose=True))
-
-    data = load_city_file(WAS, verbose=True)
-    print(popular_month(data, verbose=True))
+    for city in [CHI, NYC, WAS]:
+        data = load_city_file(city, verbose=True)
+        print(popular_month(data, verbose=True))
+        print(popular_day(data, verbose=True))
+        print(popular_hour(data, verbose=True))
+        print()
 
 
 def main():
