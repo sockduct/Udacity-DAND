@@ -15,3 +15,6 @@ raw/
 # Python object code cache
 __pycache__/
 
+# MyPy cache
+.mypy_cache/
+
