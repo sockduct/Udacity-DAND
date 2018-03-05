@@ -4,12 +4,24 @@
 # With 32-bit Python will run out of memory
 ################################################################################
 
-## TODO: import all necessary packages and functions
+
+################################################################################
+# To do:
+#===============================================================================
+# * Create a time_period class with supports one or a range of months, weeks,
+#   days, and/or hours
+# * time_period should also help with converting between string and numberical
+#   form of all the above - see function defintions
+# * Update functions to leverage this time_period class
+#
+################################################################################
+
+# Imports:
 from calendar import monthrange
-##from collections import namedtuple
 from csv import DictReader
 from datetime import datetime, date
 from time import time
+from timeperiod import TimePeriodFilter, TimePeriodResult
 from typing import List, Tuple, Union
 
 
@@ -17,9 +29,6 @@ from typing import List, Tuple, Union
 CHI = 'chicago.csv'
 NYC = 'new_york_city.csv'
 WAS = 'washington.csv'
-
-
-##TimeRec = namedtuple('TimeRec', ['year', 'month', 'date', 'hour', 'minute', 'second'])
 
 
 def get_city() -> str:
@@ -44,56 +53,90 @@ def get_city() -> str:
             print('\nPlease enter 1) Chicago, 2) New York, or 3) Washington.')
 
 
-def get_time_period() -> str:
+def get_time_period() -> TimePeriodFilter:
     '''Asks the user for a time period and returns the specified filter.
 
        Args:  None
        Returns:  Time period filter
     '''
+    time_period = TimePeriodFilter()
 
     while True:
-        time_period = input('\nWould you like to filter the data by "month", "day", or not at'
-                            ' all ("none")?\n')
-        # TODO: handle raw input and complete function
-        if time_period == '1' or 'month'.startswith(time_period.lower()):
-            return 'month'
-        elif time_period == '2' or 'day'.startswith(time_period.lower()):
-            return 'day'
-        elif (time_period == '3' or 'not at all'.startswith(time_period.lower())
-                or 'none'.startswith(time_period.lower())):
-            return 'none'
+        print('\nThe city data ranges from January 1, 2017 to June 30, 2017.')
+        answer = input('\nWould you like to filter the city data analysis by '
+                            '1) Month(s), 2) Day(s) of \na month, 3) Week(s), 4) '
+                            'Weekday(s), 5) Hours, or 6) no filter (none)?\n')
+        if answer == '1' or 'months'.startswith(answer.lower()):
+            get_month(time_period)
+        elif answer == '2' or 'days of month'.startswith(answer.lower()):
+            get_days_of_month(time_period)
+        # This one first since 'week' would always preempt it
+        elif answer == '4' or 'weekdays'.startswith(answer.lower()):
+            get_weekday(time_period)
+        elif answer == '3' or 'weeks'.startswith(answer.lower()):
+            get_week(time_period)
+        elif answer == '5' or 'hours'.startswith(answer.lower()):
+            get_hour(time_period)
+        elif answer == '6' or ('none'.startswith(answer.lower()) or
+                               'no filter'.startswitch(answer.lower())):
+            time_period.clear()
         else:
-            print('\nPlease enter 1) Month, 2) Day, or 3) None.')
+            print('\nPlease enter 1) Month, 2) Day, 3) Week, 4) Weekday, 5) Hour, '
+                  'or 6) None.')
+
+        print(time_period)
+        answer = input('\nOK? (Yes or No):  ')
+        if 'yes'.startswith(answer.lower()):
+            break
+
+    return time_period
 
 
-def get_month() -> str:
+def get_month(time_period) -> TimePeriodFilter:
     '''Asks the user for a month and returns the specified month.
 
        Args:  None
-       Returns:  Month
+       Returns:  Month range
     '''
 
-    while True:
-        month = input('\nWhich month? January, February, March, April, May, or June?\n')
-        # TODO: handle raw input and complete function
+    def parse_month(month):
         if month == '1' or 'january'.startswith(month.lower()):
-            return 'january'
+            return 1
         elif month == '2' or 'february'.startswith(month.lower()):
-            return 'february'
+            return 2
         elif month == '3' or 'march'.startswith(month.lower()):
-            return 'march'
+            return 3
         elif month == '4' or 'april'.startswith(month.lower()):
-            return 'april'
+            return 4
         elif month == '5' or 'may'.startswith(month.lower()):
-            return 'may'
+            return 5
         elif month == '6' or 'june'.startswith(month.lower()):
-            return 'june'
+            return 6
         else:
             print('\nPlease enter 1) January, 2) February, 3) March, 4) April, 5) May, '
-                  'or 6) June.')
+                  '6) June, or a range\n(February - April).')
+
+    while True:
+        month = input('\nJanuary, February, March, April, May, June, or a range '
+                      '(February - April)?\n')
+
+        if '-' in month:
+            month_start, month_end = month.split('-')
+            start_res = parse_month(month_start.strip())
+            end_res = parse_month(month_end.strip())
+            if start_res and end_res:
+                time_period.month_start = start_res
+                time_period.month_end = end_res
+                break
+        else:
+            res = parse_month(month.strip())
+            if res:
+                time_period.month_start = res
+                time_period.month_end = res
+                break
 
 
-def get_day(month: Union[int, str]) -> int:
+def get_days_of_month(time_period) -> TimePeriodFilter:
     '''Asks the user for a day and returns the specified day.
 
        Args:  month - targetted month, accepts int(1 - 12) or str
@@ -102,69 +145,161 @@ def get_day(month: Union[int, str]) -> int:
     # Determine year dynamically - but in this case, data is only from 2017...
     # year = date.today().year
     year = 2017
-    months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June',
-              7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November',
-              12: 'December'}
-
-    if isinstance(month, int) and 1 <= month <= 12:
-        daymax = monthrange(year, month)[1]
-        monthstr = months[month]
-    elif isinstance(month, str):
-        if 'january'.startswith(month.lower()):
-            daymax = monthrange(year, 1)[1]
-            monthstr = months[1]
-        elif 'february'.startswith(month.lower()):
-            daymax = monthrange(year, 2)[1]
-            monthstr = months[2]
-        elif 'march'.startswith(month.lower()):
-            daymax = monthrange(year, 3)[1]
-            monthstr = months[3]
-        elif 'april'.startswith(month.lower()):
-            daymax = monthrange(year, 4)[1]
-            monthstr = months[4]
-        elif 'may'.startswith(month.lower()):
-            daymax = monthrange(year, 5)[1]
-            monthstr = months[5]
-        elif 'june'.startswith(month.lower()):
-            daymax = monthrange(year, 6)[1]
-            monthstr = months[6]
-        elif 'july'.startswith(month.lower()):
-            daymax = monthrange(year, 7)[1]
-            monthstr = months[7]
-        elif 'august'.startswith(month.lower()):
-            daymax = monthrange(year, 8)[1]
-            monthstr = months[8]
-        elif 'september'.startswith(month.lower()):
-            daymax = monthrange(year, 9)[1]
-            monthstr = months[9]
-        elif 'october'.startswith(month.lower()):
-            daymax = monthrange(year, 10)[1]
-            monthstr = months[10]
-        elif 'november'.startswith(month.lower()):
-            daymax = monthrange(year, 11)[1]
-            monthstr = months[11]
-        elif 'december'.startswith(month.lower()):
-            daymax = monthrange(year, 12)[1]
-            monthstr = months[12]
-        else:
-            raise ValueError('Invalid month "{}" - expected 1-12 or "January".."December".'
-                             ''.format(month))
-    else:
-        raise ValueError('Invalid month "{}" - expected 1-12 or "January".."December".'
-                         ''.format(month))
 
     while True:
-        day = input('\nPlease enter a day for {}, {} from 1 - {}:\n'.format(monthstr,
-                    year, daymax))
-        # TODO: handle raw input and complete function
+        if time_period.month_start != time_period.month_end:
+            print('\nIn order to select days of a month, you must first select a single'
+                  ' month.')
+            month = get_month(time_period)
+        else:
+            break
+
+    _, daymax = monthrange(year, time_period.month_start)
+    monthstr = time_period.months[time_period.month_start]
+
+    while True:
+        day = input('\nFor {}, {} (1 - {}), please enter a day or a range (3 - 15):'
+                    '\n'.format(monthstr, year, daymax))
+
+        if '-' in day:
+            day_start, day_end = day.split('-')
+        else:
+            day_start = day
+            day_end = None
+
         try:
-            dayint = int(day)
-            if 1 <= dayint <= daymax:
-                return dayint
+            day_start = int(day_start)
+            if day_end:
+                day_end = int(day_end)
+            else:
+                day_end = day_start
+
+            if (1 <= day_start <= daymax) and (1 <= day_end <= daymax):
+                time_period.day_of_month_start = day_start
+                time_period.day_of_month_end = day_end
+                return
         except ValueError:
             pass
 
-        print('\nPlease enter a day for {}, {} from 1 - {}.'.format(monthstr, year, daymax))
+        print('\nPlease enter a day or a range (3 - 15) for {}, {} (1 - {}).'.format(
+                    monthstr, year, daymax))
+
+
+def get_weekday(time_period) -> TimePeriodFilter:
+    '''Asks the user for a weekday/range and returns the specified one.
+
+       Args:  time_period
+       Returns:  None
+    '''
+
+    def parse_weekday(weekday):
+        if weekday == '1' or 'monday'.startswith(weekday.lower()):
+            return 0
+        elif weekday == '2' or 'tuesday'.startswith(weekday.lower()):
+            return 1
+        elif weekday == '3' or 'wednesday'.startswith(weekday.lower()):
+            return 2
+        elif weekday == '4' or 'thursday'.startswith(weekday.lower()):
+            return 3
+        elif weekday == '5' or 'friday'.startswith(weekday.lower()):
+            return 4
+        elif weekday == '6' or 'saturday'.startswith(weekday.lower()):
+            return 5
+        elif weekday == '7' or 'sunday'.startswith(weekday.lower()):
+            return 6
+        else:
+            print('\nPlease enter 1) Monday, 2) Tuesday, 3) Wednesday, 4) Thursday, '
+                  '5) Friday,\n6) Saturday, 7) Sunday, or a range (Tuesday - Thursday).')
+
+    while True:
+        weekday = input('\nMonday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday,'
+                      ' or a range \n(February - April)?\n')
+
+        if '-' in weekday:
+            weekday_start, weekday_end = month.split('-')
+            start_res = parse_weekdaymonth(weekday_start.strip())
+            end_res = parse_weekdaymonth(weekday_end.strip())
+            if start_res and end_res:
+                time_period.weekday_start = start_res
+                time_period.weekday_end = end_res
+                break
+        else:
+            res = parse_weekday(weekday.strip())
+            if res:
+                time_period.weekday_start = res
+                time_period.weekday_end = res
+                break
+
+
+# Create function alias to match specifications
+get_day = get_weekday
+
+
+def get_week(time_period) -> None:
+    '''Asks the user for a week/week range and returns it.
+
+       Args:  time_period
+       Returns:  None
+    '''
+
+    while True:
+        week = input('\nPlease enter a week or a range from 1 - 27:\n')
+
+        if '-' in week:
+            week_start, week_end = week.split('-')
+        else:
+            week_start = week
+            week_end = None
+
+        try:
+            week_start = int(week_start)
+            if week_end:
+                week_end = int(week_end)
+            else:
+                week_end = week_start
+
+            if (1 <= week_start <= 27) and (1 <= week_end <= 27):
+                time_period.week_start = week_start
+                time_period.week_end = week_end
+                return
+        except ValueError:
+            pass
+
+        print('\nPlease enter a week or a range from 1 - 27.')
+
+
+def get_hour(time_period) -> None:
+    '''Asks the user for a hour/hour range and returns it.
+
+       Args:  time_period
+       Returns:  None
+    '''
+
+    while True:
+        hour = input('\nPlease enter a hour or a range from 0 - 23 (0 = midnight, '
+                     '13 = 1 pm):\n')
+
+        if '-' in hour:
+            hour_start, hour_end = hour.split('-')
+        else:
+            hour_start = hour
+            hour_end = None
+
+        try:
+            hour_start = int(hour_start)
+            if hour_end:
+                hour_end = int(hour_end)
+            else:
+                hour_end = hour_start
+
+            if (0 <= hour_start <= 23) and (0 <= hour_end <= 23):
+                time_period.hour_start = hour_start
+                time_period.hour_end = hour_end
+                return
+        except ValueError:
+            pass
+
+        print('\nPlease enter a hour or a range from 0 - 23.')
 
 
 # Takes a significant amount of time to load the data - only do it once
@@ -210,7 +345,11 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
         # row['Start Station']
         # row['End Station']
         # row['User Type']
-        # row['Gender']
+        # Gender doesn't exist in Washington file so add None
+        try:
+            _ = row['Gender']
+        except KeyError as err:
+            row['Gender'] = None
         try:
             birth_year = row['Birth Year']
             if birth_year:
@@ -266,9 +405,9 @@ def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6),
         raise ValueError('time_period must be in the range of 1-6 or January..June, '
                          'got {} - {}'.format(time_period[0], time_period[1]))
 
-    for line in city_data:
+    for row in city_data:
         # Count
-        res[line['Start Time'].month] += 1
+        res[row['Start Time'].month] += 1
 
     # Optionally see calculated month data:
     if verbose:
@@ -312,9 +451,9 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
     days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
             5: 'Saturday', 6: 'Sunday'}
 
-    for line in city_data:
+    for row in city_data:
         # Count
-        res[line['Start Time'].weekday()] += 1
+        res[row['Start Time'].weekday()] += 1
 
     # Optionally see calculated day data:
     if verbose:
@@ -364,9 +503,9 @@ def popular_hour(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
              19: 'Seven PM', 20: 'Eight PM', 21: 'Nine PM', 22: 'Ten PM',
              23: 'Eleven PM'}
 
-    for line in city_data:
+    for row in city_data:
         # Count
-        res[line['Start Time'].hour] += 1
+        res[row['Start Time'].hour] += 1
 
     # Optionally see calculated hour data:
     if verbose:
@@ -397,32 +536,18 @@ def popular_hour(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
 
 
 # Default time_period?
-# Ideally should be able to do any time period filter - month, day, week, hour,
-# etc.  Perhaps make a time_period class?  Or too complex and just make
-# assumption on meaning???
-def trip_duration(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
+def trip_duration(city_data: List[str], time_period: Tuple[int, int],
                  verbose: bool=False) -> Union[tuple, int]:
     '''Determine total trip duration and average trip duration during time_period.
        Answer question:  What is the total trip duration and average trip duration?
                          (default/reasonable time_period???)
 
        Args:  All data from the city file (city_data),
-       Returns:  total trip duration, average trip duration
-       Returns:  hour name or tuple of hour names in case of tie(s)
+       Returns:  total trip duration, average trip duration or tuple of tuples in
+                 case of tie(s)
     '''
-    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
-           11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0,
-           21: 0, 22: 0, 23: 0}
-    hours = {0: 'Midnight', 1: 'One AM', 2: 'Two AM', 3: 'Three AM', 4: 'Four AM',
-             5: 'Five AM', 6: 'Six AM', 7: 'Seven AM', 8: 'Eight AM', 9: 'Nine AM',
-             10: 'Ten AM', 11: 'Eleven AM', 12: 'Noon', 13: 'One PM', 14: 'Two PM',
-             15: 'Three PM', 16: 'Four PM', 17: 'Five PM', 18: 'Six PM',
-             19: 'Seven PM', 20: 'Eight PM', 21: 'Nine PM', 22: 'Ten PM',
-             23: 'Eleven PM'}
-
-    for line in city_data:
-        # Count
-        res[line['Start Time'].hour] += 1
+    res_total = sum(row['Trip Duration'] for row in city_data)
+    res_avg = res_total/len(city_data)
 
     # Optionally see calculated hour data:
     if verbose:
