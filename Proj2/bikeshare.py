@@ -368,6 +368,44 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     return data
 
 
+def within_time(dtobj, time_period):
+    # Month
+    if ((time_period.month_start <= dtobj.month <= time_period.month_end) and
+    # Day of Month
+        (time_period.day_of_month_start <= dtobj.day <= time_period.day_of_month_end)
+    # Week
+        and (time_period.week_start <= dtobj.isocalendar()[1] <= time_period.week_end)
+    # Weekday
+        and (time_period.weekday_start <= dtobj.weekday() <= time_period.weekday_end)
+    # Hour
+            and (time_period.hour_start <= dtobj.hour <= time_period.hour_end)):
+        return True
+
+
+def dict_filter(d):
+    return {k: v for k, v in d.items() if v != 0}
+
+
+def one_or_mult(d, tgt_val, periods=None):
+    # Duplicates?
+    if len([v for v in d.values() if v == tgt_val]) > 1:
+        mult_res = []
+        for k, v in d.items():
+            if v == tgt_val:
+                if periods:
+                    mult_res.append(periods[k])
+                else:
+                    mult_res.append(k)
+        return tuple(mult_res)
+    else:
+        for k, v in d.items():
+            if v == tgt_val:
+                if periods:
+                    return periods[k]
+                else:
+                    return k
+
+
 # Default to January (1) - June (6) as that's the range of data we have
 def popular_month(city_data: List[str], time_period: TimePeriodFilter,
                   verbose: bool=False) -> Union[Tuple[str, ...], str]:
@@ -381,35 +419,21 @@ def popular_month(city_data: List[str], time_period: TimePeriodFilter,
 
     # Count up data and tally by month
     for row in city_data:
-        month_start = row['Start Time'].month
-        period_results.months[month_start] += 1
+        # Check against time period filter:
+        start = row['Start Time']
+
+        if within_time(start, time_period):
+            period_results.months[start.month] += 1
+
+    # Max:
+    month_val = max(period_results.months.values())
+    filt_res = dict_filter(period_results.months)
 
     # Optionally see calculated month data:
     if verbose:
-        print('popular_month/results:  {}'.format(period_results.months))
+        print('popular_month/results:  {}, max:  {}'.format(filt_res, month_val))
 
-    # Filter?
-    if time_period.month_start == 1 and time_period.month_end == 6:
-        month_val = max(period_results.months.values())
-        filt_res = period_results.months
-    else:
-        filt_res = {}
-        for k in period_results.months:
-            if time_period.month_start <= k <= time_period.month_end:
-                filt_res[k] = period_results.months[k]
-        month_val = max(filt_res.values())
-
-    # Duplicates?
-    if len([v for v in filt_res.values() if v == month_val]) > 1:
-        mult_res = []
-        for k, v in filt_res.items():
-            if v == month_val:
-                mult_res.append(time_period.months[k])
-        return tuple(mult_res)
-    else:
-        for k, v in filt_res.items():
-            if v == month_val:
-                return time_period.months[k]
+    return one_or_mult(filt_res, month_val, time_period.months)
 
 
 # Default to Monday (0) - Sunday (6)
@@ -426,35 +450,19 @@ def popular_day(city_data: List[str], time_period: TimePeriodFilter,
 
     # Count up data and tally by day
     for row in city_data:
-        day_start = row['Start Time'].weekday()
-        period_results.weekdays[day_start] += 1
+        start = row['Start Time']
+        if within_time(start, time_period):
+            period_results.weekdays[start.weekday()] += 1
 
-    # Optionally see calculated day data:
+    # Max
+    day_val = max(period_results.weekdays.values())
+    filt_res = dict_filter(period_results.weekdays)
+
+    # Optionally see calculated weekday data
     if verbose:
-        print('popular_day/results:  {}'.format(period_results.weekdays))
+        print('popular_day/final results:  {}, max:  {}'.format(filt_res, day_val))
 
-    # Filter?
-    if time_period.weekday_start == 0 and time_period.weekday_end == 6:
-        day_val = max(time_period.weekdays.values())
-        filt_res = time_period.weekdays
-    else:
-        filt_res = {}
-        for k in time_period.weekdays:
-            if time_period.weekday_start <= k <= time_period.weekday_end:
-                filt_res[k] = time_period.weekdays[k]
-        day_val = max(filt_res.values())
-
-    # Duplicates?
-    if len([v for v in filt_res.values() if v == day_val]) > 1:
-        mult_res = []
-        for k, v in filt_res.items():
-            if v == day_val:
-                mult_res.append(time_period.weekdays[k])
-        return tuple(mult_res)
-    else:
-        for k, v in filt_res.items():
-            if v == day_val:
-                return time_period.weekdays[k]
+    return one_or_mult(filt_res, day_val, time_period.weekdays)
 
 
 # Default to 0 - 23
@@ -471,40 +479,24 @@ def popular_hour(city_data: List[str], time_period: TimePeriodFilter,
 
     # Count up data and tally by hour
     for row in city_data:
-        hour_start = row['Start Time'].hour
-        period_results.hours[hour_start] += 1
+        start = row['Start Time']
+        if within_time(start, time_period):
+            period_results.hours[start.hour] += 1
 
-    # Optionally see calculated hour data:
+    # Max
+    hour_val = max(period_results.hours.values())
+    filt_res = dict_filter(period_results.hours)
+
+    # Optionally see final hour data:
     if verbose:
-        print('popular_hour/results:  {}'.format(time_period.hours))
+        print('popular_hour/final results:  {}, max:  {}'.format(filt_res, hour_val))
 
-    # Filter?
-    if time_period.hour_start == 0 and time_period.hour_end == 23:
-        hour_val = max(period_results.hours.values())
-        filt_res = period_results.hours
-    else:
-        filt_res = {}
-        for k in period_results.hours:
-            if time_period.hour_start <= k <= time_period.hour_end:
-                filt_res[k] = period_results.hours[k]
-        hour_val = max(filt_res.values())
-
-    # Duplicates?
-    if len([v for v in filt_res.values() if v == hour_val]) > 1:
-        mult_res = []
-        for k, v in filt_res.items():
-            if v == hour_val:
-                mult_res.append(time_period.hours[k])
-        return tuple(mult_res)
-    else:
-        for k, v in filt_res.items():
-            if v == hour_val:
-                return time_period.hours[k]
+    return one_or_mult(filt_res, hour_val, time_period.hours)
 
 
 # Default time_period?
-def trip_duration(city_data: List[str], time_period: Tuple[int, int],
-                 verbose: bool=False) -> Union[tuple, int]:
+def trip_duration(city_data: List[str], time_period: TimePeriodFilter,
+                 verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine total trip duration and average trip duration during time_period.
        Answer question:  What is the total trip duration and average trip duration?
                          (default/reasonable time_period???)
@@ -513,42 +505,64 @@ def trip_duration(city_data: List[str], time_period: Tuple[int, int],
        Returns:  total trip duration, average trip duration or tuple of tuples in
                  case of tie(s)
     '''
-    res_total = sum(row['Trip Duration'] for row in city_data)
-    res_avg = res_total/len(city_data)
+    res_total = 0
+    res_count = 0
 
-    # Optionally see calculated hour data:
+    # Count up data and tally by trip duration
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            res_total += row['Trip Duration']
+            res_count += 1
+
+    res_avg = res_total/res_count
+
+    # Optionally see results:
     if verbose:
-        print('popular_hour/results:  {}'.format(res))
+        print('trip_duration/results - total:  {:,.2f}, average:  {:,.2f}, records '
+              'in time period:  {:,}'.format(res_total, res_avg, res_count))
 
-    # Filter?
-    if time_period == (0, 23):
-        hour_val = max(res.values())
-        filt_res = res
-    else:
-        filt_res = {}
-        for k in res:
-            if time_period[0] <= k <= time_period[1]:
-                filt_res[k] = res[k]
-        hour_val = max(res.values())
-
-    # Duplicates?
-    if len([v for v in filt_res.values() if v == hour_val]) > 1:
-        mult_res = []
-        for k in res:
-            if res[k] == hour_val:
-                mult_res.append(hours[k])
-        return tuple(mult_res)
-    else:
-        for k in res:
-            if res[k] == hour_val:
-                return hours[k]
+    return res_total, res_avg
 
 
-def popular_stations(city_data, time_period):
+def popular_stations(city_data, time_period, verbose=False):
     '''TODO: fill out docstring with description, arguments, and return values.
     Question: What is the most popular start station and most popular end station?
     '''
-    # TODO: complete function
+    start_stas = {}
+    end_stas = {}
+    sta_count = 0
+
+    # Count up data and tally by station
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            start_sta = row['Start Station']
+            end_sta = row['End Station']
+
+            for elmt, ctnr in [(start_sta, start_stas), (end_sta, end_stas)]:
+                if elmt in ctnr:
+                    ctnr[elmt] += 1
+                else:
+                    ctnr[elmt] = 1
+            sta_count += 1
+
+    # Max
+    pop_start = max(start_stas.values())
+    pop_end = max(end_stas.values())
+
+    res = {}
+    res['Start Station'] = one_or_mult(start_stas, pop_start)
+    res['End Station'] = one_or_mult(end_stas, pop_end)
+
+    # Optionally see results:
+    if verbose:
+        print('popular_stations/results - Start Stations Found:  {}, End Stations '
+              'Found:  {}, Station Records in time period:  {},\n\tMost Popular '
+              'Station Results:  {}'.format(
+                  len(start_stas), len(end_stas), sta_count, res))
+
+    return res
 
 
 def popular_trip(city_data, time_period):
@@ -687,12 +701,17 @@ def statistics():
 def test():
     # for city in [CHI, NYC, WAS]:
     for city in ['chicago-sample.csv']:
+        data = load_city_file(city, verbose=True)
+
         # time_period = get_time_period()
         time_period = TimePeriodFilter(month_start=2, month_end=4)
-        data = load_city_file(city, verbose=True)
         print(popular_month(data, time_period, verbose=True))
+        time_period = TimePeriodFilter(weekday_start=2, weekday_end=4)
         print(popular_day(data, time_period, verbose=True))
+        time_period = TimePeriodFilter(hour_start=1, hour_end=11)
         print(popular_hour(data, time_period, verbose=True))
+        print(trip_duration(data, time_period, verbose=True))
+        print(popular_stations(data, time_period, verbose=True))
         print()
 
 
