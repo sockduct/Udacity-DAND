@@ -8,11 +8,9 @@
 ################################################################################
 # To do:
 #===============================================================================
-# * Create a time_period class with supports one or a range of months, weeks,
-#   days, and/or hours
-# * time_period should also help with converting between string and numberical
-#   form of all the above - see function defintions
-# * Update functions to leverage this time_period class
+# * Update functions to leverage time_period class
+# * Update function/class docstrings
+# * Update function/class type hints and check with mypy
 #
 ################################################################################
 
@@ -213,12 +211,12 @@ def get_weekday(time_period) -> TimePeriodFilter:
 
     while True:
         weekday = input('\nMonday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday,'
-                      ' or a range \n(February - April)?\n')
+                      ' or a range \n(Tuesday - Thursday)?\n')
 
         if '-' in weekday:
-            weekday_start, weekday_end = month.split('-')
-            start_res = parse_weekdaymonth(weekday_start.strip())
-            end_res = parse_weekdaymonth(weekday_end.strip())
+            weekday_start, weekday_end = weekday.split('-')
+            start_res = parse_weekday(weekday_start.strip())
+            end_res = parse_weekday(weekday_end.strip())
             if start_res and end_res:
                 time_period.weekday_start = start_res
                 time_period.weekday_end = end_res
@@ -280,7 +278,11 @@ def get_hour(time_period) -> None:
                      '13 = 1 pm):\n')
 
         if '-' in hour:
-            hour_start, hour_end = hour.split('-')
+            # In case a negative leading hour entered:
+            try:
+                hour_start, hour_end = hour.split('-')
+            except ValueError:
+                continue
         else:
             hour_start = hour
             hour_end = None
@@ -367,79 +369,52 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
 
 
 # Default to January (1) - June (6) as that's the range of data we have
-def popular_month(city_data: List[str], time_period: Tuple[int, int]=(1, 6),
-                  verbose: bool=False) -> Union[tuple, str]:
+def popular_month(city_data: List[str], time_period: TimePeriodFilter,
+                  verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine month with highest number of start times within time_period.
        Answer question:  What is the most popular month for start time?
 
        Args:  All data from the city file (city_data),
        Returns:  month name or tuple of month names in case of tie(s)
     '''
-    res = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
-    months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June'}
-    rev_months = {'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6}
+    period_results = TimePeriodResult()
 
-    # If time_period passed as strings, convert to ints:
-    tpstr = False
-    if isinstance(time_period[0], str):
-        tpstr = True
-        start = None
-        for month in ['january', 'february', 'march', 'april', 'may', 'june']:
-            if month.startswith(time_period[0].lower()):
-                start = rev_months[month]
-    if isinstance(time_period[1], str):
-        tpstr = True
-        end = None
-        for month in ['january', 'february', 'march', 'april', 'may', 'june']:
-            if month.startswith(time_period[0].lower()):
-                end = rev_months[month]
-
-    if not tpstr:
-        tpvalid = True if 1 <= time_period[0] <= 6 else False
-
-    if tpstr and start and stop:
-        time_period = start, stop
-    elif tpvalid:
-        pass  # So only raise ValueError in one place
-    else:
-        raise ValueError('time_period must be in the range of 1-6 or January..June, '
-                         'got {} - {}'.format(time_period[0], time_period[1]))
-
+    # Count up data and tally by month
     for row in city_data:
-        # Count
-        res[row['Start Time'].month] += 1
+        month_start = row['Start Time'].month
+        period_results.months[month_start] += 1
 
     # Optionally see calculated month data:
     if verbose:
-        print('popular_month/results:  {}'.format(res))
+        print('popular_month/results:  {}'.format(period_results.months))
 
     # Filter?
-    if time_period == (1, 6):
-        month_val = max(res.values())
-        filt_res = res
+    if time_period.month_start == 1 and time_period.month_end == 6:
+        month_val = max(period_results.months.values())
+        filt_res = period_results.months
     else:
         filt_res = {}
-        for k in res:
-            if time_period[0] <= k <= time_period[1]:
-                filt_res[k] = res[k]
-        month_val = max(res.values())
+        for k in period_results.months:
+            if time_period.month_start <= k <= time_period.month_end:
+                filt_res[k] = period_results.months[k]
+        month_val = max(filt_res.values())
 
     # Duplicates?
     if len([v for v in filt_res.values() if v == month_val]) > 1:
         mult_res = []
-        for k in res:
-            if res[k] == month_val:
-                mult_res.append(months[k])
+        for k, v in filt_res.items():
+            if v == month_val:
+                mult_res.append(time_period.months[k])
         return tuple(mult_res)
     else:
-        for k in res:
-            if res[k] == month_val:
-                return months[k]
+        for k, v in filt_res.items():
+            if v == month_val:
+                return time_period.months[k]
 
 
 # Default to Monday (0) - Sunday (6)
-def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
-                verbose: bool=False) -> Union[tuple, str]:
+def popular_day(city_data: List[str], time_period: TimePeriodFilter,
+                verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine day with highest number of start times within time_period.
        Answer question:  What is the most popular day of week (Monday, Tuesday, etc.)
                          for start time?
@@ -447,45 +422,44 @@ def popular_day(city_data: List[str], time_period: Tuple[int, int]=(0, 6),
        Args:  All data from the city file (city_data),
        Returns:  day name or tuple of day names in case of tie(s)
     '''
-    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
-    days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
-            5: 'Saturday', 6: 'Sunday'}
+    period_results = TimePeriodResult()
 
+    # Count up data and tally by day
     for row in city_data:
-        # Count
-        res[row['Start Time'].weekday()] += 1
+        day_start = row['Start Time'].weekday()
+        period_results.weekdays[day_start] += 1
 
     # Optionally see calculated day data:
     if verbose:
-        print('popular_day/results:  {}'.format(res))
+        print('popular_day/results:  {}'.format(period_results.weekdays))
 
     # Filter?
-    if time_period == (0, 6):
-        day_val = max(res.values())
-        filt_res = res
+    if time_period.weekday_start == 0 and time_period.weekday_end == 6:
+        day_val = max(time_period.weekdays.values())
+        filt_res = time_period.weekdays
     else:
         filt_res = {}
-        for k in res:
-            if time_period[0] <= k <= time_period[1]:
-                filt_res[k] = res[k]
-        day_val = max(res.values())
+        for k in time_period.weekdays:
+            if time_period.weekday_start <= k <= time_period.weekday_end:
+                filt_res[k] = time_period.weekdays[k]
+        day_val = max(filt_res.values())
 
     # Duplicates?
     if len([v for v in filt_res.values() if v == day_val]) > 1:
         mult_res = []
-        for k in res:
-            if res[k] == day_val:
-                mult_res.append(days[k])
+        for k, v in filt_res.items():
+            if v == day_val:
+                mult_res.append(time_period.weekdays[k])
         return tuple(mult_res)
     else:
-        for k in res:
-            if res[k] == day_val:
-                return days[k]
+        for k, v in filt_res.items():
+            if v == day_val:
+                return time_period.weekdays[k]
 
 
 # Default to 0 - 23
-def popular_hour(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
-                 verbose: bool=False) -> Union[tuple, int]:
+def popular_hour(city_data: List[str], time_period: TimePeriodFilter,
+                 verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine hour with highest number of start times within time_period.
        Answer question:  What is the most popular hour of the day (0, 1, ..., 23)
                          for start time?
@@ -493,46 +467,39 @@ def popular_hour(city_data: List[str], time_period: Tuple[int, int]=(0, 23),
        Args:  All data from the city file (city_data),
        Returns:  hour name or tuple of hour names in case of tie(s)
     '''
-    res = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0,
-           11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0,
-           21: 0, 22: 0, 23: 0}
-    hours = {0: 'Midnight', 1: 'One AM', 2: 'Two AM', 3: 'Three AM', 4: 'Four AM',
-             5: 'Five AM', 6: 'Six AM', 7: 'Seven AM', 8: 'Eight AM', 9: 'Nine AM',
-             10: 'Ten AM', 11: 'Eleven AM', 12: 'Noon', 13: 'One PM', 14: 'Two PM',
-             15: 'Three PM', 16: 'Four PM', 17: 'Five PM', 18: 'Six PM',
-             19: 'Seven PM', 20: 'Eight PM', 21: 'Nine PM', 22: 'Ten PM',
-             23: 'Eleven PM'}
+    period_results = TimePeriodResult()
 
+    # Count up data and tally by hour
     for row in city_data:
-        # Count
-        res[row['Start Time'].hour] += 1
+        hour_start = row['Start Time'].hour
+        period_results.hours[hour_start] += 1
 
     # Optionally see calculated hour data:
     if verbose:
-        print('popular_hour/results:  {}'.format(res))
+        print('popular_hour/results:  {}'.format(time_period.hours))
 
     # Filter?
-    if time_period == (0, 23):
-        hour_val = max(res.values())
-        filt_res = res
+    if time_period.hour_start == 0 and time_period.hour_end == 23:
+        hour_val = max(period_results.hours.values())
+        filt_res = period_results.hours
     else:
         filt_res = {}
-        for k in res:
-            if time_period[0] <= k <= time_period[1]:
-                filt_res[k] = res[k]
-        hour_val = max(res.values())
+        for k in period_results.hours:
+            if time_period.hour_start <= k <= time_period.hour_end:
+                filt_res[k] = period_results.hours[k]
+        hour_val = max(filt_res.values())
 
     # Duplicates?
     if len([v for v in filt_res.values() if v == hour_val]) > 1:
         mult_res = []
-        for k in res:
-            if res[k] == hour_val:
-                mult_res.append(hours[k])
+        for k, v in filt_res.items():
+            if v == hour_val:
+                mult_res.append(time_period.hours[k])
         return tuple(mult_res)
     else:
-        for k in res:
-            if res[k] == hour_val:
-                return hours[k]
+        for k, v in filt_res.items():
+            if v == hour_val:
+                return time_period.hours[k]
 
 
 # Default time_period?
@@ -718,11 +685,14 @@ def statistics():
 
 
 def test():
-    for city in [CHI, NYC, WAS]:
+    # for city in [CHI, NYC, WAS]:
+    for city in ['chicago-sample.csv']:
+        # time_period = get_time_period()
+        time_period = TimePeriodFilter(month_start=2, month_end=4)
         data = load_city_file(city, verbose=True)
-        print(popular_month(data, verbose=True))
-        print(popular_day(data, verbose=True))
-        print(popular_hour(data, verbose=True))
+        print(popular_month(data, time_period, verbose=True))
+        print(popular_day(data, time_period, verbose=True))
+        print(popular_hour(data, time_period, verbose=True))
         print()
 
 
