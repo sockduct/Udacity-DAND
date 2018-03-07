@@ -559,31 +559,108 @@ def popular_stations(city_data, time_period, verbose=False):
     if verbose:
         print('popular_stations/results - Start Stations Found:  {}, End Stations '
               'Found:  {}, Station Records in time period:  {},\n\tMost Popular '
-              'Station Results:  {}'.format(
-                  len(start_stas), len(end_stas), sta_count, res))
+              'Station Results:  {}\n\tRecorded {} and {} times respectively'.format(
+                  len(start_stas), len(end_stas), sta_count, res, pop_start, pop_end))
 
     return res
 
 
-def popular_trip(city_data, time_period):
+def popular_trip(city_data, time_period, verbose=False):
     '''TODO: fill out docstring with description, arguments, and return values.
     Question: What is the most popular trip?
+    Note:  Defining a trip as the same start/end station pair
     '''
-    # TODO: complete function
+    trips = {}
+    count = 0
+
+    # Count up data and tally by station
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            trip = '{} to {}'.format(row['Start Station'], row ['End Station'])
+
+            if trip in trips:
+                trips[trip] += 1
+            else:
+                trips[trip] = 1
+            count += 1
+
+    # Max
+    pop_trip = max(trips.values())
+    res = one_or_mult(trips, pop_trip)
+
+    # Optionally see results:
+    if verbose:
+        print('popular_trip/results - Trips Found:  {}, Records in time period:  '
+              '{},\n\tMost Popular Trip Result:  {} - Taken {} times'.format(
+                  len(trips), count, res, pop_trip))
+
+    return res
 
 
-def users(city_data, time_period):
+def users(city_data, time_period, verbose=False):
     '''TODO: fill out docstring with description, arguments, and return values.
     Question: What are the counts of each user type?
     '''
-    # TODO: complete function
+    user_types = {}
+    count = 0
+
+    # Count up data and tally by station
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            user_type = row['User Type']
+
+            if user_type in user_types:
+                user_types[user_type] += 1
+            else:
+                user_types[user_type] = 1
+            count += 1
+
+    # Max
+    pop_user = max(user_types.values())
+    res = one_or_mult(user_types, pop_user)
+
+    # Optionally see results:
+    if verbose:
+        print('user/results - Users Found:  {}, Records in time period:  {}, '
+              'User Types Found:  {}'.format(len(user_types), count, user_types))
+
+    return res
 
 
-def gender(city_data, time_period):
+def gender(city_data, time_period, verbose=False):
     '''TODO: fill out docstring with description, arguments, and return values.
     Question: What are the counts of gender?
     '''
-    # TODO: complete function
+    genders = {}
+    count = 0
+
+    # Count up data and tally by station
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            gender_type = row['Gender']
+
+            if gender_type is None or gender_type.strip() == '':
+                gender_type = 'Unknown'
+
+            if gender_type in genders:
+                genders[gender_type] += 1
+            else:
+                genders[gender_type] = 1
+            count += 1
+
+    # Max
+    pop_gender = max(genders.values())
+    res = one_or_mult(genders, pop_gender)
+
+    # Optionally see results:
+    if verbose:
+        print('gender/results - Genders Found:  {}, Records in time period:  {}, '
+              'Gender Types Found:  {}'.format(len(genders), count, genders))
+
+    return res
 
 
 def birth_years(city_data, time_period):
@@ -712,6 +789,9 @@ def test():
         print(popular_hour(data, time_period, verbose=True))
         print(trip_duration(data, time_period, verbose=True))
         print(popular_stations(data, time_period, verbose=True))
+        print(popular_trip(data, time_period, verbose=True))
+        print(users(data, time_period, verbose=True))
+        print(gender(data, time_period, verbose=True))
         print()
 
 
