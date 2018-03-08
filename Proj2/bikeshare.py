@@ -382,8 +382,12 @@ def within_time(dtobj, time_period):
         return True
 
 
-def dict_filter(d):
-    return {k: v for k, v in d.items() if v != 0}
+def dict_filter(d, filtval=0):
+    return {k: v for k, v in d.items() if v != filtval}
+
+
+def dict_keyfilter(d, filtval='Unknown'):
+    return {k: v for k, v in d.items() if k != filtval}
 
 
 def one_or_mult(d, tgt_val, periods=None):
@@ -663,15 +667,48 @@ def gender(city_data, time_period, verbose=False):
     return res
 
 
-def birth_years(city_data, time_period):
+def birth_years(city_data, time_period, verbose=False):
     '''TODO: fill out docstring with description, arguments, and return values.
     Question: What are the earliest (i.e. oldest user), most recent (i.e. youngest user),
     and most popular birth years?
     '''
-    # TODO: complete function
+    yobs = {}  # Year of Births
+    count = 0
+
+    # Count up data and tally by station
+    for row in city_data:
+        start = row['Start Time']
+        if within_time(start, time_period):
+            birth_year = row['Birth Year']
+
+            if birth_year is None or birth_year == 0:
+                birth_year = 'Unknown'
+
+            if birth_year in yobs:
+                yobs[birth_year] += 1
+            else:
+                yobs[birth_year] = 1
+            count += 1
+
+    # Max
+    res = {'Unknown': yobs['Unknown']}
+    filt_yobs = dict_keyfilter(yobs)
+    # .keys is the default but using to make it clear/explicit that this is what's
+    # desired
+    new_birthyr = max(filt_yobs.keys())
+    res['Youngest'] = new_birthyr
+    old_birthyr = min(filt_yobs.keys())
+    res['Oldest'] = old_birthyr
+
+    # Optionally see results:
+    if verbose:
+        print('birth_years/results - Number of Birth Years Found:  {}, Records in '
+              'time period:  {}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
+
+    return res
 
 
-def display_data():
+def display_data(city_data):
     '''Displays five lines of data if the user specifies that they would like to.
     After displaying five lines, ask the user if they would like to see five more,
     continuing asking until they say stop.
@@ -681,9 +718,38 @@ def display_data():
     Returns:
         TODO: fill out return type and description (see get_city for an example)
     '''
+    lines = 5
+
+    def view_data(lines=5):
+        buffer = []
+        field_widths = {}
+
+        for i, line in enumerate(city_data):
+            buffer.append(line)
+            for k, v in line:
+                if k in field_widths:
+                    if len(v) > field_widths[k]:
+                        field_widths[k] = len(v)
+                else:
+                    if hasattr(v, '__len__'):
+                        field_widths[k] = len(v)
+            if i % lines == 0:
+                print()
+                for line in buffer:
+                    print(line)
+                print()
+                yield
+
     display = input('\nWould you like to view individual trip data?'
-                    'Type \'yes\' or \'no\'.\n')
-    # TODO: handle raw input and complete function
+                    '  (\'Yes\' or \'No\')\n')
+    while True:
+        if 'yes'.startswith(display.lower()):
+            view_data()
+        else:
+            break
+
+        display = input('View another {} lines of trip data?  (\'Yes\' or \'No\')'
+                        '\n'.format(lines))
 
 
 def statistics():
@@ -792,7 +858,9 @@ def test():
         print(popular_trip(data, time_period, verbose=True))
         print(users(data, time_period, verbose=True))
         print(gender(data, time_period, verbose=True))
+        print(birth_years(data, time_period, verbose=True))
         print()
+        display_data(data)
 
 
 def main():
