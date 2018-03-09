@@ -349,7 +349,9 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
         # row['User Type']
         # Gender doesn't exist in Washington file so add None
         try:
-            _ = row['Gender']
+            gender = row['Gender']
+            if gender.strip() == '':
+                row['Gender'] = None
         except KeyError as err:
             row['Gender'] = None
         try:
@@ -708,7 +710,7 @@ def birth_years(city_data, time_period, verbose=False):
     return res
 
 
-def display_data(city_data):
+def display_data(city_data, lines=5):
     '''Displays five lines of data if the user specifies that they would like to.
     After displaying five lines, ask the user if they would like to see five more,
     continuing asking until they say stop.
@@ -718,33 +720,41 @@ def display_data(city_data):
     Returns:
         TODO: fill out return type and description (see get_city for an example)
     '''
-    lines = 5
+    swap_none = lambda seq: [i if i else 'None' for i in seq]
+    swap_long = lambda longstr: longstr if len(longstr) <= 25 else longstr[:22] + '...'
 
     def view_data(lines=5):
-        buffer = []
-        field_widths = {}
-
         for i, line in enumerate(city_data):
-            buffer.append(line)
-            for k, v in line:
-                if k in field_widths:
-                    if len(v) > field_widths[k]:
-                        field_widths[k] = len(v)
-                else:
-                    if hasattr(v, '__len__'):
-                        field_widths[k] = len(v)
+            # Print the header row initially and every <lines> lines
             if i % lines == 0:
-                print()
-                for line in buffer:
-                    print(line)
+                (start_time, end_time, trip_dur, start_sta, end_sta, user, gender,
+                    birthyr) = line.keys()
+                # Abridge 'Trip Duration' and 'Birth Year' to save space
+                print('\n{:19}  {:14}  {:9}  {:25}  {:25}  {:10}  {:6}  {:8}'.format(
+                        start_time, end_time, 'Trip Dur.', start_sta, end_sta, user,
+                        gender, 'Birth Yr'))
+
+            (start_time, end_time, trip_dur, start_sta, end_sta, user, gender,
+                birthyr) = swap_none(line.values())
+            start_sta = swap_long(start_sta)
+            end_sta = swap_long(end_sta)
+            print('{:%m-%d-%Y %H:%M:%S}  {:%m-%d %H:%M:%S}  {:9,}  {:25}  {:25}'
+                  '  {:10}  {:6}  {:<8}'.format(start_time, end_time, trip_dur,
+                      start_sta, end_sta, user, gender, birthyr))
+
+            # Yield every <lines> lines, but not on first run (i == 0)
+            if (i + 1) % lines == 0 and i > 0:
                 print()
                 yield
 
-    display = input('\nWould you like to view individual trip data?'
+    print('\nNote:  Assuming a screen width of 132 characters, monospaced.')
+    display = input('Would you like to view individual trip data?'
                     '  (\'Yes\' or \'No\')\n')
+    paged_data = view_data()
     while True:
-        if 'yes'.startswith(display.lower()):
-            view_data()
+        # If user just hits "Enter" (display == ''), don't count it as a yes
+        if display and 'yes'.startswith(display.lower()):
+            next(paged_data)
         else:
             break
 
