@@ -18,6 +18,8 @@
 from calendar import monthrange
 from csv import DictReader
 from datetime import datetime, date
+import os
+import sys
 from time import time
 from timeperiod import TimePeriodFilter, TimePeriodResult
 from typing import List, Tuple, Union
@@ -773,6 +775,7 @@ def statistics():
     '''
     # Filter by city (Chicago, New York, Washington)
     city = get_city()
+    data = load_city_file(city, verbose=True)
 
     # Filter by time period (month, day, none)
     time_period = get_time_period()
@@ -780,62 +783,71 @@ def statistics():
     print('Calculating the first statistic...')
 
     # What is the most popular month for start time?
-    if time_period == 'none':
-        start_time = time()
-        
-        #TODO: call popular_month function and print the results
-        
-        print("That took %s seconds." % (time() - start_time))
-        print("Calculating the next statistic...")
+    ## Need to think through what's trying to be accomplished with this if:
+    ##if time_period == 'none':
+    start_time = time()
+    
+    res = popular_month(data, time_period, verbose=False)
+    print('{}:\n{}The most popular month is:  {}'.format(city, time_period, res))
+    
+    print("That took %s seconds." % (time() - start_time))
+    print("Calculating the next statistic...")
+    ##endif
 
     # What is the most popular day of week (Monday, Tuesday, etc.) for start time?
-    if time_period == 'none' or time_period == 'month':
-        start_time = time()
-        
-        # TODO: call popular_day function and print the results
-        
-        print("That took %s seconds." % (time() - start_time))
-        print("Calculating the next statistic...")    
+    ## Need to think through what's trying to be accomplished with this if:
+    ##if time_period == 'none' or time_period == 'month':
+    start_time = time()
+    
+    res = popular_day(data, time_period, verbose=False)
+    print('{}:\n{}The most popular day is:  {}'.format(city, time_period, res))
+    
+    print("That took %s seconds." % (time() - start_time))
+    print("Calculating the next statistic...")    
+    ##endif
 
     start_time = time()
 
     # What is the most popular hour of day for start time?
-    # TODO: call popular_hour function and print the results
+    res = popular_hour(data, time_period, verbose=False)
+    print('{}:\n{}The most popular hour is:  {}'.format(city, time_period, res))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
     start_time = time()
 
     # What is the total trip duration and average trip duration?
-    # TODO: call trip_duration function and print the results
+    res = trip_duration(data, time_period, verbose=False)
+    print('{}:\n{}The total trip duration is:  {:,.2f}'.format(city, time_period, res[0]))
+    print('The average trip duration is:  {:,.2f}'.format(city, time_period, res[1]))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
     start_time = time()
 
     # What is the most popular start station and most popular end station?
-    # TODO: call popular_stations function and print the results
+    print(popular_stations(data, time_period, verbose=False))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
     start_time = time()
 
     # What is the most popular trip?
-    # TODO: call popular_trip function and print the results
+    print(popular_trip(data, time_period, verbose=False))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
     start_time = time()
 
     # What are the counts of each user type?
-    # TODO: call users function and print the results
+    print(users(data, time_period, verbose=False))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
     start_time = time()
 
     # What are the counts of gender?
-    # TODO: call gender function and print the results
+    print(gender(data, time_period, verbose=False))
 
     print("That took %s seconds." % (time() - start_time))
     print("Calculating the next statistic...")
@@ -843,12 +855,12 @@ def statistics():
 
     # What are the earliest (i.e. oldest user), most recent (i.e. youngest user), and
     # most popular birth years?
-    # TODO: call birth_years function and print the results
+    print(birth_years(data, time_period, verbose=False))
 
     print("That took %s seconds." % (time() - start_time))
 
     # Display five lines of data at a time if user specifies that they would like to
-    display_data()
+    display_data(data)
 
 
 def test():
@@ -873,13 +885,20 @@ def test():
         display_data(data)
 
 
-def main():
+def main(args):
     '''Entry point for direct script invocation.'''
-    statistics()
+    if len(args) == 1 or (len(args) == 2 and 'statistics'.startswith(args[1]).lower()):
+        statistics()
+    elif len(args) == 2 and 'test'.startswith(args[1]).lower():
+        test()
+    else:
+        callname = os.path.basename(args[0])
+        sys.exit('Usage:  {} [test | statistics]'.format(callname))
 
     # Restart?
     while True:
-        restart = input('\nWould you like to restart?  Enter "Yes" or "No":\n')
+        restart = input('\nWould you like to restart (with statistics)?  Enter "Yes"'
+                        ' or "No":\n')
         if 'yes'.startswith(restart.lower()):
             statistics()
         elif 'no'.startswith(restart.lower()):
@@ -889,6 +908,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    test()
+    main(sys.argv)
 
