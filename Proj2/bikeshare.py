@@ -84,8 +84,8 @@ def get_time_period() -> TimePeriodFilter:
             print('\nPlease enter 1) Month, 2) Day, 3) Week, 4) Weekday, 5) Hour, '
                   'or 6) None.')
 
-        print(time_period)
-        answer = input('\nOK? (Yes or No):  ')
+        print('\n{}'.format(time_period))
+        answer = input('OK? (Yes or No):  ')
         if 'yes'.startswith(answer.lower()):
             break
 
@@ -570,7 +570,7 @@ def popular_stations(city_data, time_period, verbose=False):
               'Station Results:  {}\n\tRecorded {} and {} times respectively'.format(
                   len(start_stas), len(end_stas), sta_count, res, pop_start, pop_end))
 
-    return res
+    return tuple((res['Start Station'], res['End Station']))
 
 
 def popular_trip(city_data, time_period, verbose=False):
@@ -619,6 +619,9 @@ def users(city_data, time_period, verbose=False):
         if within_time(start, time_period):
             user_type = row['User Type']
 
+            if user_type is None or user_type.strip() == '':
+                user_type = 'Unknown'
+
             if user_type in user_types:
                 user_types[user_type] += 1
             else:
@@ -627,14 +630,14 @@ def users(city_data, time_period, verbose=False):
 
     # Max
     pop_user = max(user_types.values())
-    res = one_or_mult(user_types, pop_user)
+    maxres = one_or_mult(user_types, pop_user)
 
     # Optionally see results:
     if verbose:
         print('user/results - Users Found:  {}, Records in time period:  {}, '
               'User Types Found:  {}'.format(len(user_types), count, user_types))
 
-    return res
+    return user_types
 
 
 def gender(city_data, time_period, verbose=False):
@@ -661,14 +664,14 @@ def gender(city_data, time_period, verbose=False):
 
     # Max
     pop_gender = max(genders.values())
-    res = one_or_mult(genders, pop_gender)
+    maxres = one_or_mult(genders, pop_gender)
 
     # Optionally see results:
     if verbose:
         print('gender/results - Genders Found:  {}, Records in time period:  {}, '
               'Gender Types Found:  {}'.format(len(genders), count, genders))
 
-    return res
+    return genders
 
 
 def birth_years(city_data, time_period, verbose=False):
@@ -697,19 +700,24 @@ def birth_years(city_data, time_period, verbose=False):
     # Max
     res = {'Unknown': yobs['Unknown']}
     filt_yobs = dict_keyfilter(yobs)
-    # .keys is the default but using to make it clear/explicit that this is what's
-    # desired
-    new_birthyr = max(filt_yobs.keys())
-    res['Youngest'] = new_birthyr
-    old_birthyr = min(filt_yobs.keys())
-    res['Oldest'] = old_birthyr
+    # Sanity check
+    if filt_yobs:
+        # .keys is the default but using to make it clear/explicit that this is
+        # what's desired
+        new_birthyr = max(filt_yobs.keys())
+        res['Youngest'] = new_birthyr
+        old_birthyr = min(filt_yobs.keys())
+        res['Oldest'] = old_birthyr
+    else:
+        res['Youngest'] = 'Unknown'
+        res['Oldest'] = 'Unknown'
 
     # Optionally see results:
     if verbose:
         print('birth_years/results - Number of Birth Years Found:  {}, Records in '
               'time period:  {}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
 
-    return res
+    return tuple((res['Oldest'], res['Youngest']))
 
 
 def display_data(city_data, lines=5):
@@ -764,7 +772,7 @@ def display_data(city_data, lines=5):
                         '\n'.format(lines))
 
 
-def statistics():
+def statistics(start_city=None, start_data=None):
     '''Calculates and prints out the descriptive statistics about a city and time period
     specified by the user via raw input.
 
@@ -773,123 +781,176 @@ def statistics():
     Returns:
         none.
     '''
+    start_time = 0.0
+    first_stat = True
+
+    def next_stat(initial=False):
+        nonlocal start_time
+        nonlocal first_stat
+        start_time = time()
+        first_stat = False
+
+        if initial:
+            print('Statistics for {}\n{}'.format(city, time_period))
+            print('-->Calculating the first statistic...', end='')
+        else:
+            print('-->Calculating the next statistic...', end='')
+
+    stat_time = lambda start_time: print(' - Calculation took {:.2f} seconds.'
+                                         ''.format(time() - start_time))
+
     # Filter by city (Chicago, New York, Washington)
-    city = get_city()
-    data = load_city_file(city, verbose=True)
+    choose_city = True
+    if start_city:
+        answer = input('\nCurrent selected city data file is {}.  Choose another'
+                       ' city?  (Yes/No)\n'.format(start_city))
+        if answer.strip() == '' or not 'yes'.startswith(answer.lower()):
+            choose_city = False
+
+    if choose_city:
+        city = get_city()
+    else:
+        city = start_city
+
+    load_data = True
+    if not choose_city and start_data:
+        answer = input('{} data already loaded into memory.  Reload?  (Yes/No)\n'
+                       ''.format(city))
+        if answer.strip() == '' or not 'yes'.startswith(answer.lower()):
+            load_data = False
+    
+    if load_data:
+        data = load_city_file(city, verbose=True)
+    else:
+        data = start_data
 
     # Filter by time period (month, day, none)
     time_period = get_time_period()
+    print()
 
-    print('Calculating the first statistic...')
+    # If starting month == ending month then skip
+    if time_period.month_start != time_period.month_end:
+        next_stat(initial=True) if first_stat else next_stat()
+        # What is the most popular month for start time?
+        res = popular_month(data, time_period, verbose=False)
+        stat_time(start_time)
+        print('The most popular month is:  {}'.format(res))
 
-    # What is the most popular month for start time?
-    ## Need to think through what's trying to be accomplished with this if:
-    ##if time_period == 'none':
-    start_time = time()
-    
-    res = popular_month(data, time_period, verbose=False)
-    print('{}:\n{}The most popular month is:  {}'.format(city, time_period, res))
-    
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    ##endif
+    # If starting weekday == ending weekday then skip
+    if time_period.weekday_start != time_period.weekday_end:
+        next_stat(initial=True) if first_stat else next_stat()
+        # What is the most popular day of week (Monday, Tuesday, etc.) for start time?
+        res = popular_day(data, time_period, verbose=False)
+        stat_time(start_time)
+        print('The most popular day is:  {}'.format(res))
 
-    # What is the most popular day of week (Monday, Tuesday, etc.) for start time?
-    ## Need to think through what's trying to be accomplished with this if:
-    ##if time_period == 'none' or time_period == 'month':
-    start_time = time()
-    
-    res = popular_day(data, time_period, verbose=False)
-    print('{}:\n{}The most popular day is:  {}'.format(city, time_period, res))
-    
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")    
-    ##endif
+    # If starting hour == ending hour then skip
+    if time_period.hour_start != time_period.hour_end:
+        next_stat(initial=True) if first_stat else next_stat()
+        # What is the most popular hour of day for start time?
+        res = popular_hour(data, time_period, verbose=False)
+        stat_time(start_time)
+        print('The most popular hour is:  {}'.format(res))
 
-    start_time = time()
-
-    # What is the most popular hour of day for start time?
-    res = popular_hour(data, time_period, verbose=False)
-    print('{}:\n{}The most popular hour is:  {}'.format(city, time_period, res))
-
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat(initial=True) if first_stat else next_stat()
     # What is the total trip duration and average trip duration?
     res = trip_duration(data, time_period, verbose=False)
-    print('{}:\n{}The total trip duration is:  {:,.2f}'.format(city, time_period, res[0]))
-    print('The average trip duration is:  {:,.2f}'.format(city, time_period, res[1]))
+    stat_time(start_time)
+    print('The total trip duration is:  {:,.2f} seconds'.format(res[0]))
+    print('The average trip duration is:  {:,.2f} seconds'.format(res[1]))
 
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat()
     # What is the most popular start station and most popular end station?
-    print(popular_stations(data, time_period, verbose=False))
+    res = popular_stations(data, time_period, verbose=False)
+    stat_time(start_time)
+    print('The most popular start stations is:  {}'.format(res[0]))
+    print('The most popular end stations is:  {}'.format(res[1]))
 
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat()
     # What is the most popular trip?
-    print(popular_trip(data, time_period, verbose=False))
+    res = popular_trip(data, time_period, verbose=False)
+    stat_time(start_time)
+    print('The most popular trip is:  {}'.format(res))
 
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat()
     # What are the counts of each user type?
-    print(users(data, time_period, verbose=False))
+    res = users(data, time_period, verbose=False)
+    stat_time(start_time)
+    print('User types and counts:')
+    for k, v in sorted(res.items()):
+        print('\t{}:  {:,}'.format(k, v))
 
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat()
     # What are the counts of gender?
-    print(gender(data, time_period, verbose=False))
+    res = gender(data, time_period, verbose=False)
+    stat_time(start_time)
+    print('Gender types and counts:')
+    for k, v in sorted(res.items()):
+        print('\t{}:  {:,}'.format(k, v))
 
-    print("That took %s seconds." % (time() - start_time))
-    print("Calculating the next statistic...")
-    start_time = time()
-
+    next_stat()
     # What are the earliest (i.e. oldest user), most recent (i.e. youngest user), and
     # most popular birth years?
-    print(birth_years(data, time_period, verbose=False))
-
-    print("That took %s seconds." % (time() - start_time))
+    res = birth_years(data, time_period, verbose=False)
+    stat_time(start_time)
+    print('The earliest (i.e., oldest) users were born in:  {}'.format(res[0]))
+    print('The most recent (i.e., youngest) users were born in:  {}'.format(res[1]))
 
     # Display five lines of data at a time if user specifies that they would like to
     display_data(data)
 
+    return city, data
+
 
 def test():
-    # for city in [CHI, NYC, WAS]:
-    for city in ['chicago-sample.csv']:
+    # test_data = [CHI, NYC, WAS]
+    test_data = ['chicago-sample.csv', 'new_york_city-sample.csv',
+                 'washington-sample.csv']
+    for city in test_data:
         data = load_city_file(city, verbose=True)
 
         # time_period = get_time_period()
         time_period = TimePeriodFilter(month_start=2, month_end=4)
-        print(popular_month(data, time_period, verbose=True))
+        res = popular_month(data, time_period, verbose=True)
+        print('-->The most popular month is:  {}'.format(res))
         time_period = TimePeriodFilter(weekday_start=2, weekday_end=4)
-        print(popular_day(data, time_period, verbose=True))
+        res = popular_day(data, time_period, verbose=True)
+        print('-->The most popular day is:  {}'.format(res))
         time_period = TimePeriodFilter(hour_start=1, hour_end=11)
-        print(popular_hour(data, time_period, verbose=True))
-        print(trip_duration(data, time_period, verbose=True))
-        print(popular_stations(data, time_period, verbose=True))
-        print(popular_trip(data, time_period, verbose=True))
-        print(users(data, time_period, verbose=True))
-        print(gender(data, time_period, verbose=True))
-        print(birth_years(data, time_period, verbose=True))
+        res = popular_hour(data, time_period, verbose=True)
+        print('-->The most popular hour is:  {}'.format(res))
+        res = trip_duration(data, time_period, verbose=True)
+        print('-->The total trip duration is:  {:,.2f} seconds'.format(res[0]))
+        print('-->The average trip duration is:  {:,.2f} seconds'.format(res[1]))
+        res = popular_stations(data, time_period, verbose=True)
+        print('-->The most popular start stations is:  {}'.format(res[0]))
+        print('-->The most popular end stations is:  {}'.format(res[1]))
+        res = popular_trip(data, time_period, verbose=True)
+        print('-->The most popular trip is:  {}'.format(res))
+        res = users(data, time_period, verbose=True)
+        print('-->User types and counts:')
+        for k, v in sorted(res.items()):
+            print('--->\t{}:  {:,}'.format(k, v))
+        res = gender(data, time_period, verbose=True)
+        print('-->Gender types and counts:')
+        for k, v in sorted(res.items()):
+            print('--->\t{}:  {:,}'.format(k, v))
+        res = birth_years(data, time_period, verbose=True)
+        print('-->The earliest (i.e., oldest) users were born in:  {}'.format(res[0]))
+        print('-->The most recent (i.e., youngest) users were born in:  {}'.format(
+                res[1]))
         print()
         display_data(data)
 
 
 def main(args):
     '''Entry point for direct script invocation.'''
-    if len(args) == 1 or (len(args) == 2 and 'statistics'.startswith(args[1]).lower()):
-        statistics()
-    elif len(args) == 2 and 'test'.startswith(args[1]).lower():
+    city = None
+    data = None
+
+    if len(args) == 1 or (len(args) == 2 and 'statistics'.startswith(args[1].lower())):
+        city, data = statistics()
+    elif len(args) == 2 and 'test'.startswith(args[1].lower()):
         test()
     else:
         callname = os.path.basename(args[0])
@@ -900,7 +961,7 @@ def main(args):
         restart = input('\nWould you like to restart (with statistics)?  Enter "Yes"'
                         ' or "No":\n')
         if 'yes'.startswith(restart.lower()):
-            statistics()
+            statistics(city, data)
         elif 'no'.startswith(restart.lower()):
             return
         else:
