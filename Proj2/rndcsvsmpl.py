@@ -16,7 +16,7 @@ SAMPLE = 10000
 def main(argv):
     if len(argv) != 2:
         callname = os.path.basename(argv[0])
-        print('Usage:  {} <csv-file>'.format(callname))
+        sys.exit('Usage:  {} <csv-file>'.format(callname))
 
     csvfile = argv[1]
     if not os.path.isfile(csvfile):
