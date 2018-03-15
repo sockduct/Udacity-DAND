@@ -8,21 +8,23 @@
 ################################################################################
 # To do:
 #===============================================================================
-# * Update functions to leverage time_period class
 # * Update function/class docstrings
 # * Update function/class type hints and check with mypy
 #
 ################################################################################
 
-# Imports:
+# System Imports:
 from calendar import monthrange
 from csv import DictReader
 from datetime import datetime, date
 import os
 import sys
 from time import time
-from timeperiod import TimePeriodFilter, TimePeriodResult
 from typing import List, Tuple, Union
+
+# My Imports:
+from timeperiod import TimePeriodFilter, TimePeriodResult
+from util import dict_filter, dict_keyfilter, one_or_mult
 
 
 # Filenames - use ALL CAPS for global constants
@@ -36,7 +38,7 @@ def get_city() -> str:
        data.
 
        Args:  None
-       Returns:  Filename for a city's bikeshare data.
+       Returns:  Filename for a city's bikeshare data
     '''
 
     print('\nHello! Let\'s explore some US bikeshare data!')
@@ -67,18 +69,18 @@ def get_time_period() -> TimePeriodFilter:
                             '1) Month(s), 2) Day(s) of \na month, 3) Week(s), 4) '
                             'Weekday(s), 5) Hours, or 6) no filter (none)?\n')
         if answer == '1' or 'months'.startswith(answer.lower()):
-            get_month(time_period)
+            set_month(time_period)
         elif answer == '2' or 'days of month'.startswith(answer.lower()):
-            get_days_of_month(time_period)
+            set_days_of_month(time_period)
         # This one first since 'week' would always preempt it
         elif answer == '4' or 'weekdays'.startswith(answer.lower()):
-            get_weekday(time_period)
+            set_weekday(time_period)
         elif answer == '3' or 'weeks'.startswith(answer.lower()):
-            get_week(time_period)
+            set_week(time_period)
         elif answer == '5' or 'hours'.startswith(answer.lower()):
-            get_hour(time_period)
+            set_hour(time_period)
         elif answer == '6' or ('none'.startswith(answer.lower()) or
-                               'no filter'.startswitch(answer.lower())):
+                               'no filter'.startswith(answer.lower())):
             time_period.clear()
         else:
             print('\nPlease enter 1) Month, 2) Day, 3) Week, 4) Weekday, 5) Hour, '
@@ -92,11 +94,12 @@ def get_time_period() -> TimePeriodFilter:
     return time_period
 
 
-def get_month(time_period) -> TimePeriodFilter:
-    '''Asks the user for a month and returns the specified month.
+def set_month(time_period: TimePeriodFilter) -> None:
+    '''Asks the user for a month (range) and updates the passed time period
+       filter.
 
-       Args:  None
-       Returns:  Month range
+       Args:  Time period filter
+       Returns:  None
     '''
 
     def parse_month(month):
@@ -136,11 +139,12 @@ def get_month(time_period) -> TimePeriodFilter:
                 break
 
 
-def get_days_of_month(time_period) -> TimePeriodFilter:
-    '''Asks the user for a day and returns the specified day.
+def set_days_of_month(time_period: TimePeriodFilter) -> None:
+    '''Asks the user for a day (range) and updates the passed time period
+       filter.
 
-       Args:  month - targetted month, accepts int(1 - 12) or str
-       Returns:  user selected day, validated by calendar.monthrange
+       Args:  Time period filter
+       Returns:  None
     '''
     # Determine year dynamically - but in this case, data is only from 2017...
     # year = date.today().year
@@ -150,7 +154,7 @@ def get_days_of_month(time_period) -> TimePeriodFilter:
         if time_period.month_start != time_period.month_end:
             print('\nIn order to select days of a month, you must first select a single'
                   ' month.')
-            month = get_month(time_period)
+            set_month(time_period)
         else:
             break
 
@@ -168,15 +172,15 @@ def get_days_of_month(time_period) -> TimePeriodFilter:
             day_end = None
 
         try:
-            day_start = int(day_start)
+            iday_start = int(day_start)
             if day_end:
-                day_end = int(day_end)
+                iday_end = int(day_end)
             else:
-                day_end = day_start
+                iday_end = iday_start
 
-            if (1 <= day_start <= daymax) and (1 <= day_end <= daymax):
-                time_period.day_of_month_start = day_start
-                time_period.day_of_month_end = day_end
+            if (1 <= iday_start <= daymax) and (1 <= iday_end <= daymax):
+                time_period.day_of_month_start = iday_start
+                time_period.day_of_month_end = iday_end
                 return
         except ValueError:
             pass
@@ -185,10 +189,11 @@ def get_days_of_month(time_period) -> TimePeriodFilter:
                     monthstr, year, daymax))
 
 
-def get_weekday(time_period) -> TimePeriodFilter:
-    '''Asks the user for a weekday/range and returns the specified one.
+def set_weekday(time_period: TimePeriodFilter) -> None:
+    '''Asks the user for a weekday (range) and updates the passed time period
+       filter.
 
-       Args:  time_period
+       Args:  Time period filter
        Returns:  None
     '''
 
@@ -232,13 +237,14 @@ def get_weekday(time_period) -> TimePeriodFilter:
 
 
 # Create function alias to match specifications
-get_day = get_weekday
+set_day = set_weekday
 
 
-def get_week(time_period) -> None:
-    '''Asks the user for a week/week range and returns it.
+def set_week(time_period: TimePeriodFilter) -> None:
+    '''Asks the user for a week (range) and updates the passed time period
+       filter.
 
-       Args:  time_period
+       Args:  Time period filter
        Returns:  None
     '''
 
@@ -268,10 +274,10 @@ def get_week(time_period) -> None:
         print('\nPlease enter a week or a range from 1 - 27.')
 
 
-def get_hour(time_period) -> None:
-    '''Asks the user for a hour/hour range and returns it.
+def set_hour(time_period: TimePeriodFilter) -> None:
+    '''Asks the user for a hour (range) and updates passed time period filter.
 
-       Args:  time_period
+       Args:  Time period filter
        Returns:  None
     '''
 
@@ -310,7 +316,8 @@ def get_hour(time_period) -> None:
 def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     '''Opens city_file, loads using csv stdlib DictReader, returns as list.
 
-       Args:  filename, assumed to be in current working directory
+       Args:  city_file - assumed to be in current working directory
+              verbose - optional toggle to enable debug-type output
        Returns:  list of results
     '''
 
@@ -372,7 +379,14 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     return data
 
 
-def within_time(dtobj, time_period):
+def within_time(dtobj: datetime, time_period: TimePeriodFilter) -> bool:
+    '''See if passed datetime object falls within passed time period filter -
+       Yes?  Return True, otherwise return False.
+
+       Args:  datetime object - the date and time in question
+              Time period filter
+       Returns:  boolean
+    '''
     # Month
     if ((time_period.month_start <= dtobj.month <= time_period.month_end) and
     # Day of Month
@@ -384,43 +398,20 @@ def within_time(dtobj, time_period):
     # Hour
             and (time_period.hour_start <= dtobj.hour <= time_period.hour_end)):
         return True
-
-
-def dict_filter(d, filtval=0):
-    return {k: v for k, v in d.items() if v != filtval}
-
-
-def dict_keyfilter(d, filtval='Unknown'):
-    return {k: v for k, v in d.items() if k != filtval}
-
-
-def one_or_mult(d, tgt_val, periods=None):
-    # Duplicates?
-    if len([v for v in d.values() if v == tgt_val]) > 1:
-        mult_res = []
-        for k, v in d.items():
-            if v == tgt_val:
-                if periods:
-                    mult_res.append(periods[k])
-                else:
-                    mult_res.append(k)
-        return tuple(mult_res)
     else:
-        for k, v in d.items():
-            if v == tgt_val:
-                if periods:
-                    return periods[k]
-                else:
-                    return k
+        return False
 
 
 # Default to January (1) - June (6) as that's the range of data we have
-def popular_month(city_data: List[str], time_period: TimePeriodFilter,
+def popular_month(city_data: List[dict], time_period: TimePeriodFilter,
                   verbose: bool=False) -> Union[Tuple[str, ...], str]:
-    '''Determine month with highest number of start times within time_period.
+    '''Determine month with highest number of start times within time period
+       filter.
        Answer question:  What is the most popular month for start time?
 
-       Args:  All data from the city file (city_data),
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
        Returns:  month name or tuple of month names in case of tie(s)
     '''
     period_results = TimePeriodResult()
@@ -439,19 +430,22 @@ def popular_month(city_data: List[str], time_period: TimePeriodFilter,
 
     # Optionally see calculated month data:
     if verbose:
-        print('popular_month/results:  {}, max:  {}'.format(filt_res, month_val))
+        print('popular_month/results:  {}, max:  {:,}'.format(filt_res, month_val))
 
     return one_or_mult(filt_res, month_val, time_period.months)
 
 
 # Default to Monday (0) - Sunday (6)
-def popular_day(city_data: List[str], time_period: TimePeriodFilter,
+def popular_day(city_data: List[dict], time_period: TimePeriodFilter,
                 verbose: bool=False) -> Union[Tuple[str, ...], str]:
-    '''Determine day with highest number of start times within time_period.
-       Answer question:  What is the most popular day of week (Monday, Tuesday, etc.)
-                         for start time?
+    '''Determine day with highest number of start times within time period
+       filter.
+       Answer question:  What is the most popular day of week (Monday, Tuesday,
+                         etc.) for start time?
 
-       Args:  All data from the city file (city_data),
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
        Returns:  day name or tuple of day names in case of tie(s)
     '''
     period_results = TimePeriodResult()
@@ -468,19 +462,22 @@ def popular_day(city_data: List[str], time_period: TimePeriodFilter,
 
     # Optionally see calculated weekday data
     if verbose:
-        print('popular_day/final results:  {}, max:  {}'.format(filt_res, day_val))
+        print('popular_day/final results:  {}, max:  {:,}'.format(filt_res, day_val))
 
     return one_or_mult(filt_res, day_val, time_period.weekdays)
 
 
 # Default to 0 - 23
-def popular_hour(city_data: List[str], time_period: TimePeriodFilter,
+def popular_hour(city_data: List[dict], time_period: TimePeriodFilter,
                  verbose: bool=False) -> Union[Tuple[str, ...], str]:
-    '''Determine hour with highest number of start times within time_period.
-       Answer question:  What is the most popular hour of the day (0, 1, ..., 23)
-                         for start time?
+    '''Determine hour with highest number of start times within time period
+       filter.
+       Answer question:  What is the most popular hour of the day (0, 1, ...,
+                         23) for start time?
 
-       Args:  All data from the city file (city_data),
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
        Returns:  hour name or tuple of hour names in case of tie(s)
     '''
     period_results = TimePeriodResult()
@@ -497,21 +494,22 @@ def popular_hour(city_data: List[str], time_period: TimePeriodFilter,
 
     # Optionally see final hour data:
     if verbose:
-        print('popular_hour/final results:  {}, max:  {}'.format(filt_res, hour_val))
+        print('popular_hour/final results:  {}, max:  {:,}'.format(filt_res, hour_val))
 
     return one_or_mult(filt_res, hour_val, time_period.hours)
 
 
 # Default time_period?
-def trip_duration(city_data: List[str], time_period: TimePeriodFilter,
-                 verbose: bool=False) -> Union[Tuple[str, ...], str]:
-    '''Determine total trip duration and average trip duration during time_period.
+def trip_duration(city_data: List[dict], time_period: TimePeriodFilter,
+                  verbose: bool=False) -> Tuple[float, float]:
+    '''Determine total trip duration and average trip duration during time period
+       filter.
        Answer question:  What is the total trip duration and average trip duration?
-                         (default/reasonable time_period???)
 
-       Args:  All data from the city file (city_data),
-       Returns:  total trip duration, average trip duration or tuple of tuples in
-                 case of tie(s)
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  total trip duration, average trip duration
     '''
     res_total = 0
     res_count = 0
@@ -533,9 +531,17 @@ def trip_duration(city_data: List[str], time_period: TimePeriodFilter,
     return res_total, res_avg
 
 
-def popular_stations(city_data, time_period, verbose=False):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the most popular start station and most popular end station?
+def popular_stations(city_data: List[dict], time_period: TimePeriodFilter,
+                     verbose: bool=False) -> Tuple[str, str]:
+    '''Determine start and end stations with highest usage count during time
+       period filter.
+       Answer question:  What is the most popular start station and most popular
+                         end station?
+
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  Most popular start station and most popular end station
     '''
     start_stas = {}
     end_stas = {}
@@ -565,18 +571,25 @@ def popular_stations(city_data, time_period, verbose=False):
 
     # Optionally see results:
     if verbose:
-        print('popular_stations/results - Start Stations Found:  {}, End Stations '
-              'Found:  {}, Station Records in time period:  {},\n\tMost Popular '
-              'Station Results:  {}\n\tRecorded {} and {} times respectively'.format(
+        print('popular_stations/results - Start Stations Found:  {:,}, End Stations '
+              'Found:  {:,}, Station Records in time period:  {:,},\n\tMost Popular '
+              'Station Results:  {}\n\tRecorded {:,} and {:,} times respectively'.format(
                   len(start_stas), len(end_stas), sta_count, res, pop_start, pop_end))
 
     return tuple((res['Start Station'], res['End Station']))
 
 
-def popular_trip(city_data, time_period, verbose=False):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What is the most popular trip?
-    Note:  Defining a trip as the same start/end station pair
+def popular_trip(city_data: List[dict], time_period: TimePeriodFilter,
+                 verbose: bool=False) -> Tuple[str, str]:
+    '''Count all start station --> end station sets and return one with highest
+       frequency within the passed time period filter.
+       Answer question:  What is the most popular trip?
+       Note:  Defining a trip as the same start/end station pair
+
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  Most popular trip as defined above
     '''
     trips = {}
     count = 0
@@ -599,16 +612,22 @@ def popular_trip(city_data, time_period, verbose=False):
 
     # Optionally see results:
     if verbose:
-        print('popular_trip/results - Trips Found:  {}, Records in time period:  '
-              '{},\n\tMost Popular Trip Result:  {} - Taken {} times'.format(
+        print('popular_trip/results - Trips Found:  {:,}, Records in time period:  '
+              '{:,},\n\tMost Popular Trip Result:  {} - Taken {:,} times'.format(
                   len(trips), count, res, pop_trip))
 
     return res
 
 
-def users(city_data, time_period, verbose=False):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What are the counts of each user type?
+def users(city_data: List[dict], time_period: TimePeriodFilter,
+          verbose: bool=False) -> dict:
+    '''Count all user types including `Unknown`.
+       Answer question:  What are the counts of each user type?
+
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  dict of user types with count of each
     '''
     user_types = {}
     count = 0
@@ -634,15 +653,21 @@ def users(city_data, time_period, verbose=False):
 
     # Optionally see results:
     if verbose:
-        print('user/results - Users Found:  {}, Records in time period:  {}, '
+        print('user/results - Users Found:  {:,}, Records in time period:  {:,}, '
               'User Types Found:  {}'.format(len(user_types), count, user_types))
 
     return user_types
 
 
-def gender(city_data, time_period, verbose=False):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What are the counts of gender?
+def gender(city_data: List[dict], time_period: TimePeriodFilter,
+           verbose: bool=False) -> dict:
+    '''Count all gender types including `Unknown`.
+       Answer question:  What are the counts of gender?
+
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  dict of gender types with count of each
     '''
     genders = {}
     count = 0
@@ -668,16 +693,23 @@ def gender(city_data, time_period, verbose=False):
 
     # Optionally see results:
     if verbose:
-        print('gender/results - Genders Found:  {}, Records in time period:  {}, '
+        print('gender/results - Genders Found:  {:,}, Records in time period:  {:,}, '
               'Gender Types Found:  {}'.format(len(genders), count, genders))
 
     return genders
 
 
-def birth_years(city_data, time_period, verbose=False):
-    '''TODO: fill out docstring with description, arguments, and return values.
-    Question: What are the earliest (i.e. oldest user), most recent (i.e. youngest user),
-    and most popular birth years?
+def birth_years(city_data: List[dict], time_period: TimePeriodFilter,
+                verbose: bool=False) -> Tuple[int, int]:
+    '''Tabulate all birth years including `Unknown`.  If possible (i.e., birth
+       years present), determine youngest and oldest birth years.
+       Answer question:  What are the earliest (i.e., oldest user), most recent
+                         (i.e., youngest user), and most popular birth years?
+
+       Args:  city_data - All data from the city file
+              time_period - Time period filter
+              verbose - optional toggle to enable debug-type output
+       Returns:  tuple of youngest and oldest birth years
     '''
     yobs = {}  # Year of Births
     count = 0
@@ -714,21 +746,21 @@ def birth_years(city_data, time_period, verbose=False):
 
     # Optionally see results:
     if verbose:
-        print('birth_years/results - Number of Birth Years Found:  {}, Records in '
-              'time period:  {}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
+        print('birth_years/results - Number of Birth Years Found:  {:,}, Records in '
+              'time period:  {:,}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
 
     return tuple((res['Oldest'], res['Youngest']))
 
 
-def display_data(city_data, lines=5):
-    '''Displays five lines of data if the user specifies that they would like to.
-    After displaying five lines, ask the user if they would like to see five more,
-    continuing asking until they say stop.
+def display_data(city_data: List[dict], lines: int=5) -> None:
+    '''Displays five lines of data at a time if the user specifies that he would
+       like to view it.  After displaying, ask the user if he would like to see
+       five more.  Continuing asking until user specifies no.
+       Note:  This function is a generator - used to remember place in the data.
 
-    Args:
-        none.
-    Returns:
-        TODO: fill out return type and description (see get_city for an example)
+       Args:  city_data - All data from the city file
+              lines - How many lines of data to view
+       Returns:  None
     '''
     swap_none = lambda seq: [i if i else 'None' for i in seq]
     swap_long = lambda longstr: longstr if len(longstr) <= 25 else longstr[:22] + '...'
@@ -772,14 +804,17 @@ def display_data(city_data, lines=5):
                         '\n'.format(lines))
 
 
-def statistics(start_city=None, start_data=None):
-    '''Calculates and prints out the descriptive statistics about a city and time period
-    specified by the user via raw input.
+def statistics(start_city: str=None, start_data: List[dict]=None) -> Tuple[str, List[dict]]:
+    '''Calculates and prints out the descriptive statistics about a city and
+       time period specified by the user via raw input.  Optionally takes a
+       city data file and the loaded data to allow the user to re-run this
+       function with different time period filters.  This avoids the time
+       consuming process of having to re-load and re-parse the data for the
+       same data set.
 
-    Args:
-        none.
-    Returns:
-        none.
+       Args:  start_city - City file if previously specified
+              start_data - All data from the city file if previously loaded
+       Returns:  city file and city data to allow re-running this function
     '''
     start_time = 0.0
     first_stat = True
@@ -902,21 +937,40 @@ def statistics(start_city=None, start_data=None):
     return city, data
 
 
-def test():
-    # test_data = [CHI, NYC, WAS]
-    test_data = ['chicago-sample.csv', 'new_york_city-sample.csv',
-                 'washington-sample.csv']
+# Alternate time_period settings for testing:
+# ----------------------------------------------------------------------------
+# time_period=TimePeriodFilter(month_start=2, month_end=4)
+# time_period = TimePeriodFilter(weekday_start=2, weekday_end=4)
+# time_period = TimePeriodFilter(hour_start=1, hour_end=11)
+# time_period = TimePeriodFilter(month_start=2, month_end=4, weekday_start=2,
+#                                weekday_end=4, hour_start=1, hour_end=11)
+# Default is no time_period filtering
+def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()) -> None:
+    '''Basic test function to validate program.  Allows using sample data
+       (generated from actual data using rndcsvsmpl.py) which loads and
+       processes quickly or real data.
+
+       Args:  dataset - use sample data or actual (prod) data
+              time_period - Time period filter
+       Returns:  None
+    '''
+    if dataset == 'sample':
+        test_data = ['chicago-sample.csv', 'new_york_city-sample.csv',
+                     'washington-sample.csv']
+    elif dataset == 'prod':
+        test_data = [CHI, NYC, WAS]
+    else:
+        sys.exit('Error:  Unexpected dataset "{}" - expecting "sample" or "prod".'.format(
+                dataset))
+
     for city in test_data:
+        print('\nStatistics for {}\n{}'.format(city, time_period))
         data = load_city_file(city, verbose=True)
 
-        # time_period = get_time_period()
-        time_period = TimePeriodFilter(month_start=2, month_end=4)
         res = popular_month(data, time_period, verbose=True)
         print('-->The most popular month is:  {}'.format(res))
-        time_period = TimePeriodFilter(weekday_start=2, weekday_end=4)
         res = popular_day(data, time_period, verbose=True)
         print('-->The most popular day is:  {}'.format(res))
-        time_period = TimePeriodFilter(hour_start=1, hour_end=11)
         res = popular_hour(data, time_period, verbose=True)
         print('-->The most popular hour is:  {}'.format(res))
         res = trip_duration(data, time_period, verbose=True)
@@ -939,19 +993,32 @@ def test():
         print('-->The earliest (i.e., oldest) users were born in:  {}'.format(res[0]))
         print('-->The most recent (i.e., youngest) users were born in:  {}'.format(
                 res[1]))
+
         print()
         display_data(data)
 
 
-def main(args):
-    '''Entry point for direct script invocation.'''
+def main(args: List[str]) -> None:
+    '''Entry point for direct script invocation.  Allows calling main statistics
+       function or test function.
+       
+       Args:  arguments from command line invocation as collected by sys
+       Returns:  None
+    '''
     city = None
     data = None
 
     if len(args) == 1 or (len(args) == 2 and 'statistics'.startswith(args[1].lower())):
         city, data = statistics()
-    elif len(args) == 2 and 'test'.startswith(args[1].lower()):
-        test()
+    elif 2 <= len(args) <= 4 and 'test'.startswith(args[1].lower()):
+        if len(args) == 4:
+            # This (eval) is horrible from a security point of view...  :-(
+            time_period = eval(args[3])
+            test(args[2], time_period)
+        elif len(args) == 3:
+            test(args[2])
+        else:
+            test()
     else:
         callname = os.path.basename(args[0])
         sys.exit('Usage:  {} [test | statistics]'.format(callname))
