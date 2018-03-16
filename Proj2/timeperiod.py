@@ -8,9 +8,9 @@ class TimePeriodFilter:
     rev_months = {'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6}
 
     weekdays = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday',
-            5: 'Saturday', 6: 'Sunday'}
+                5: 'Saturday', 6: 'Sunday'}
     rev_weekdays = {'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3, 'friday': 4,
-                'saturday': 5, 'sunday': 6}
+                    'saturday': 5, 'sunday': 6}
 
     hours = {0: 'Midnight', 1: 'One AM', 2: 'Two AM', 3: 'Three AM', 4: 'Four AM',
              5: 'Five AM', 6: 'Six AM', 7: 'Seven AM', 8: 'Eight AM', 9: 'Nine AM',
@@ -57,6 +57,7 @@ class TimePeriodFilter:
                 '\n\tweeks:  {}\t\tweekdays:  {}\t\thours:  {}\n'.format(month_str,
                     day_of_month_str, week_str, weekday_str, hour_str))
 
+    # Should this be a static method?
     def _strgen(startval, endval, startmin, endmax, transtr=None):
         if startval == startmin and endval == endmax:
             valstr = 'All'
