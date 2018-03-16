@@ -704,7 +704,7 @@ def gender(city_data: List[OrderedDict], time_period: TimePeriodFilter,
 
 
 def birth_years(city_data: List[OrderedDict], time_period: TimePeriodFilter,
-                verbose: bool=False) -> Tuple[int, int]:
+                verbose: bool=False) -> Tuple[int, int, int]:
     '''Tabulate all birth years including `Unknown`.  If possible (i.e., birth
        years present), determine youngest and oldest birth years.
        Answer question:  What are the earliest (i.e., oldest user), most recent
@@ -744,16 +744,17 @@ def birth_years(city_data: List[OrderedDict], time_period: TimePeriodFilter,
         res['Youngest'] = new_birthyr
         old_birthyr = min(filt_yobs.keys())
         res['Oldest'] = old_birthyr
+        max_cnt_birthyr = max(filt_yobs.values())
+        res['Most Popular'] = one_or_mult(filt_yobs, max_cnt_birthyr)
     else:
-        res['Youngest'] = 'Unknown'
-        res['Oldest'] = 'Unknown'
+        res = {k: 'Unknown' for k in ['Youngest', 'Oldest', 'Most Popular']}
 
     # Optionally see results:
     if verbose:
         print('birth_years/results - Number of Birth Years Found:  {:,}, Records in '
               'time period:  {:,}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
 
-    return (res['Oldest'], res['Youngest'])
+    return (res['Oldest'], res['Youngest'], res['Most Popular'])
 
 
 def display_data(city_data: List[OrderedDict], lines: int=5) -> None:
@@ -938,6 +939,7 @@ def statistics(start_city: str=None, start_data:
     stat_time(start_time)
     print('The earliest (i.e., oldest) users were born in:  {}'.format(res[0]))
     print('The most recent (i.e., youngest) users were born in:  {}'.format(res[1]))
+    print('The most popular year users were born in:  {}'.format(res[2]))
 
     # Display five lines of data at a time if user specifies that they would like to
     display_data(data)
@@ -1003,6 +1005,7 @@ def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()
         print('-->The earliest (i.e., oldest) users were born in:  {}'.format(res[0]))
         print('-->The most recent (i.e., youngest) users were born in:  {}'.format(
                 res[1]))
+        print('-->The most popular year users were born in:  {}'.format(res[2]))
 
         print()
         display_data(data)
