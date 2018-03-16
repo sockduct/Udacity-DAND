@@ -1,7 +1,7 @@
 # DAND Project 2 - Explore US Bikeshare Data
 
 ## Project Purpose and Notes
-This project uses Python to explore data related to bike share systems for three major cities in the United States--**Chicago**, **New York City**, and **Washington**. The program reads in the specified CSV data file and answers interesting questions about it by computing descriptive statistics. This program also supports user interaction by taking in input to allow the user to choose the city file and optionally specify a time period filter.
+This project uses Python to explore data related to bike share systems for three major cities in the United States--**Chicago**, **New York City**, and **Washington**. The program reads in the specified CSV data file and answers interesting questions about it by computing descriptive statistics. This program also supports direct interaction by allowing the user to choose the city file and optionally specify a time period filter.
 
 ## Installation and Requirements
 * Install [Python](https://www.python.org/downloads/)
@@ -35,7 +35,7 @@ This project uses Python to explore data related to bike share systems for three
 
 ## Example Project Output
 ```
-C:\GHRepos\Udacity-DAND\Proj2> bikeshare.py
+C:\GHRepos\Udacity-DAND\Proj2> .\bikeshare.py
 
 Hello! Let's explore some US bikeshare data!
 Would you like to see data for Chicago, New York, or Washington?
@@ -128,7 +128,7 @@ n
 
 Would you like to restart (with statistics)?  Enter "Yes" or "No":
 n
-C:\apps\working\udacity\dand\proj2 [master +9 ~0 -0 !]>
+C:\GHRepos\Udacity-DAND\Proj2> 
 ```
 
 ## License
