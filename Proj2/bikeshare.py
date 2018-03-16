@@ -1,26 +1,29 @@
 #!/usr/bin/env python3.6-64
 ################################################################################
-# Need 64-bit Python 3.6+ (may work with 3.5)
+# Need 64-bit Python 3.6+
 # With 32-bit Python will run out of memory
+# Note:  Using variable annotations - requires 3.6+
 ################################################################################
 
+'''Program to read in various CSV data sets about bike sharing services and
+   provide statistics on them.  Optionally allows statistics to be constrained
+   by a user specified time period filter.'''
 
 ################################################################################
 # To do:
 #===============================================================================
-# * Update function/class docstrings
-# * Update function/class type hints and check with mypy
-#
+# * Anything else?
 ################################################################################
 
 # System Imports:
 from calendar import monthrange
+from collections import OrderedDict
 from csv import DictReader
 from datetime import datetime, date
 import os
 import sys
 from time import time
-from typing import List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 # My Imports:
 from timeperiod import TimePeriodFilter, TimePeriodResult
@@ -44,7 +47,6 @@ def get_city() -> str:
     print('\nHello! Let\'s explore some US bikeshare data!')
     while True:
         city = input('Would you like to see data for Chicago, New York, or Washington?\n')
-        # TODO: handle raw input and complete function
         if city == '1' or 'chicago'.startswith(city.lower()):
             return CHI
         elif city == '2' or 'new york'.startswith(city.lower()):
@@ -66,8 +68,8 @@ def get_time_period() -> TimePeriodFilter:
     while True:
         print('\nThe city data ranges from January 1, 2017 to June 30, 2017.')
         answer = input('\nWould you like to filter the city data analysis by '
-                            '1) Month(s), 2) Day(s) of \na month, 3) Week(s), 4) '
-                            'Weekday(s), 5) Hours, or 6) no filter (none)?\n')
+                       '1) Month(s), 2) Day(s) of \na month, 3) Week(s), 4) '
+                       'Weekday(s), 5) Hours, or 6) no filter (none)?\n')
         if answer == '1' or 'months'.startswith(answer.lower()):
             set_month(time_period)
         elif answer == '2' or 'days of month'.startswith(answer.lower()):
@@ -103,6 +105,8 @@ def set_month(time_period: TimePeriodFilter) -> None:
     '''
 
     def parse_month(month):
+        '''Try to convert user input into month (Jan - Jun) or re-prompt if
+           unable to do so.'''
         if month == '1' or 'january'.startswith(month.lower()):
             return 1
         elif month == '2' or 'february'.startswith(month.lower()):
@@ -198,6 +202,7 @@ def set_weekday(time_period: TimePeriodFilter) -> None:
     '''
 
     def parse_weekday(weekday):
+        '''Try to convert user input into weekday or re-prompt if can't.'''
         if weekday == '1' or 'monday'.startswith(weekday.lower()):
             return 0
         elif weekday == '2' or 'tuesday'.startswith(weekday.lower()):
@@ -218,7 +223,7 @@ def set_weekday(time_period: TimePeriodFilter) -> None:
 
     while True:
         weekday = input('\nMonday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday,'
-                      ' or a range \n(Tuesday - Thursday)?\n')
+                        ' or a range \n(Tuesday - Thursday)?\n')
 
         if '-' in weekday:
             weekday_start, weekday_end = weekday.split('-')
@@ -258,15 +263,15 @@ def set_week(time_period: TimePeriodFilter) -> None:
             week_end = None
 
         try:
-            week_start = int(week_start)
+            iweek_start = int(week_start)
             if week_end:
-                week_end = int(week_end)
+                iweek_end = int(week_end)
             else:
-                week_end = week_start
+                iweek_end = iweek_start
 
-            if (1 <= week_start <= 27) and (1 <= week_end <= 27):
-                time_period.week_start = week_start
-                time_period.week_end = week_end
+            if (1 <= iweek_start <= 27) and (1 <= iweek_end <= 27):
+                time_period.week_start = iweek_start
+                time_period.week_end = iweek_end
                 return
         except ValueError:
             pass
@@ -296,15 +301,15 @@ def set_hour(time_period: TimePeriodFilter) -> None:
             hour_end = None
 
         try:
-            hour_start = int(hour_start)
+            ihour_start = int(hour_start)
             if hour_end:
-                hour_end = int(hour_end)
+                ihour_end = int(hour_end)
             else:
-                hour_end = hour_start
+                ihour_end = ihour_start
 
-            if (0 <= hour_start <= 23) and (0 <= hour_end <= 23):
-                time_period.hour_start = hour_start
-                time_period.hour_end = hour_end
+            if (0 <= ihour_start <= 23) and (0 <= ihour_end <= 23):
+                time_period.hour_start = ihour_start
+                time_period.hour_end = ihour_end
                 return
         except ValueError:
             pass
@@ -313,7 +318,7 @@ def set_hour(time_period: TimePeriodFilter) -> None:
 
 
 # Takes a significant amount of time to load the data - only do it once
-def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
+def load_city_file(city_file: str, verbose: bool=False) -> List[OrderedDict]:
     '''Opens city_file, loads using csv stdlib DictReader, returns as list.
 
        Args:  city_file - assumed to be in current working directory
@@ -325,8 +330,8 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     if verbose:
         load_start = time()
         print('Loading {}...'.format(city_file), end='', flush=True)
-    with open(city_file) as f:
-        reader = DictReader(f)
+    with open(city_file) as infile:
+        reader = DictReader(infile)
         data = list(reader)
     if verbose:
         print(' - Processed in {:.2f} seconds.'.format(time() - load_start))
@@ -336,6 +341,8 @@ def load_city_file(city_file: str, verbose: bool=False) -> List[dict]:
     if verbose:
         conv_start = time()
         print('Converting to native types...', end='', flush=True)
+
+    row: Any  # Allow changing types
     for row in data:
         # Parse out date into year, month, date, time - ('2017-01-01 00:00:36')
         # datetime.strptime(d1, '%Y-%m-%d %H:%M:%S')
@@ -387,23 +394,20 @@ def within_time(dtobj: datetime, time_period: TimePeriodFilter) -> bool:
               Time period filter
        Returns:  boolean
     '''
-    # Month
-    if ((time_period.month_start <= dtobj.month <= time_period.month_end) and
-    # Day of Month
-        (time_period.day_of_month_start <= dtobj.day <= time_period.day_of_month_end)
-    # Week
-        and (time_period.week_start <= dtobj.isocalendar()[1] <= time_period.week_end)
-    # Weekday
-        and (time_period.weekday_start <= dtobj.weekday() <= time_period.weekday_end)
-    # Hour
-            and (time_period.hour_start <= dtobj.hour <= time_period.hour_end)):
-        return True
-    else:
-        return False
+            # Month
+    return ((time_period.month_start <= dtobj.month <= time_period.month_end) and
+            # Day of Month
+            (time_period.day_of_month_start <= dtobj.day <= time_period.day_of_month_end)
+            # Week
+            and (time_period.week_start <= dtobj.isocalendar()[1] <= time_period.week_end)
+            # Weekday
+            and (time_period.weekday_start <= dtobj.weekday() <= time_period.weekday_end)
+            # Hour
+            and (time_period.hour_start <= dtobj.hour <= time_period.hour_end))
 
 
 # Default to January (1) - June (6) as that's the range of data we have
-def popular_month(city_data: List[dict], time_period: TimePeriodFilter,
+def popular_month(city_data: List[OrderedDict], time_period: TimePeriodFilter,
                   verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine month with highest number of start times within time period
        filter.
@@ -436,7 +440,7 @@ def popular_month(city_data: List[dict], time_period: TimePeriodFilter,
 
 
 # Default to Monday (0) - Sunday (6)
-def popular_day(city_data: List[dict], time_period: TimePeriodFilter,
+def popular_day(city_data: List[OrderedDict], time_period: TimePeriodFilter,
                 verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine day with highest number of start times within time period
        filter.
@@ -468,7 +472,7 @@ def popular_day(city_data: List[dict], time_period: TimePeriodFilter,
 
 
 # Default to 0 - 23
-def popular_hour(city_data: List[dict], time_period: TimePeriodFilter,
+def popular_hour(city_data: List[OrderedDict], time_period: TimePeriodFilter,
                  verbose: bool=False) -> Union[Tuple[str, ...], str]:
     '''Determine hour with highest number of start times within time period
        filter.
@@ -500,7 +504,7 @@ def popular_hour(city_data: List[dict], time_period: TimePeriodFilter,
 
 
 # Default time_period?
-def trip_duration(city_data: List[dict], time_period: TimePeriodFilter,
+def trip_duration(city_data: List[OrderedDict], time_period: TimePeriodFilter,
                   verbose: bool=False) -> Tuple[float, float]:
     '''Determine total trip duration and average trip duration during time period
        filter.
@@ -531,8 +535,8 @@ def trip_duration(city_data: List[dict], time_period: TimePeriodFilter,
     return res_total, res_avg
 
 
-def popular_stations(city_data: List[dict], time_period: TimePeriodFilter,
-                     verbose: bool=False) -> Tuple[str, str]:
+def popular_stations(city_data: List[OrderedDict], time_period: TimePeriodFilter,
+                     verbose: bool=False) -> Tuple[Union[str, Tuple[str, ...]], ...]:
     '''Determine start and end stations with highest usage count during time
        period filter.
        Answer question:  What is the most popular start station and most popular
@@ -543,8 +547,8 @@ def popular_stations(city_data: List[dict], time_period: TimePeriodFilter,
               verbose - optional toggle to enable debug-type output
        Returns:  Most popular start station and most popular end station
     '''
-    start_stas = {}
-    end_stas = {}
+    start_stas: dict = {}
+    end_stas: dict = {}
     sta_count = 0
 
     # Count up data and tally by station
@@ -579,8 +583,8 @@ def popular_stations(city_data: List[dict], time_period: TimePeriodFilter,
     return tuple((res['Start Station'], res['End Station']))
 
 
-def popular_trip(city_data: List[dict], time_period: TimePeriodFilter,
-                 verbose: bool=False) -> Tuple[str, str]:
+def popular_trip(city_data: List[OrderedDict], time_period: TimePeriodFilter,
+                 verbose: bool=False) -> Union[str, Tuple[str, ...]]:
     '''Count all start station --> end station sets and return one with highest
        frequency within the passed time period filter.
        Answer question:  What is the most popular trip?
@@ -591,14 +595,14 @@ def popular_trip(city_data: List[dict], time_period: TimePeriodFilter,
               verbose - optional toggle to enable debug-type output
        Returns:  Most popular trip as defined above
     '''
-    trips = {}
+    trips: dict = {}
     count = 0
 
     # Count up data and tally by station
     for row in city_data:
         start = row['Start Time']
         if within_time(start, time_period):
-            trip = '{} to {}'.format(row['Start Station'], row ['End Station'])
+            trip = '{} to {}'.format(row['Start Station'], row['End Station'])
 
             if trip in trips:
                 trips[trip] += 1
@@ -619,7 +623,7 @@ def popular_trip(city_data: List[dict], time_period: TimePeriodFilter,
     return res
 
 
-def users(city_data: List[dict], time_period: TimePeriodFilter,
+def users(city_data: List[OrderedDict], time_period: TimePeriodFilter,
           verbose: bool=False) -> dict:
     '''Count all user types including `Unknown`.
        Answer question:  What are the counts of each user type?
@@ -629,7 +633,7 @@ def users(city_data: List[dict], time_period: TimePeriodFilter,
               verbose - optional toggle to enable debug-type output
        Returns:  dict of user types with count of each
     '''
-    user_types = {}
+    user_types: dict = {}
     count = 0
 
     # Count up data and tally by station
@@ -659,7 +663,7 @@ def users(city_data: List[dict], time_period: TimePeriodFilter,
     return user_types
 
 
-def gender(city_data: List[dict], time_period: TimePeriodFilter,
+def gender(city_data: List[OrderedDict], time_period: TimePeriodFilter,
            verbose: bool=False) -> dict:
     '''Count all gender types including `Unknown`.
        Answer question:  What are the counts of gender?
@@ -669,7 +673,7 @@ def gender(city_data: List[dict], time_period: TimePeriodFilter,
               verbose - optional toggle to enable debug-type output
        Returns:  dict of gender types with count of each
     '''
-    genders = {}
+    genders: dict = {}
     count = 0
 
     # Count up data and tally by station
@@ -699,7 +703,7 @@ def gender(city_data: List[dict], time_period: TimePeriodFilter,
     return genders
 
 
-def birth_years(city_data: List[dict], time_period: TimePeriodFilter,
+def birth_years(city_data: List[OrderedDict], time_period: TimePeriodFilter,
                 verbose: bool=False) -> Tuple[int, int]:
     '''Tabulate all birth years including `Unknown`.  If possible (i.e., birth
        years present), determine youngest and oldest birth years.
@@ -711,7 +715,7 @@ def birth_years(city_data: List[dict], time_period: TimePeriodFilter,
               verbose - optional toggle to enable debug-type output
        Returns:  tuple of youngest and oldest birth years
     '''
-    yobs = {}  # Year of Births
+    yobs: dict = {}  # Year of Births
     count = 0
 
     # Count up data and tally by station
@@ -749,14 +753,13 @@ def birth_years(city_data: List[dict], time_period: TimePeriodFilter,
         print('birth_years/results - Number of Birth Years Found:  {:,}, Records in '
               'time period:  {:,}, Birth Years Found:  {}'.format(len(yobs), count, yobs))
 
-    return tuple((res['Oldest'], res['Youngest']))
+    return (res['Oldest'], res['Youngest'])
 
 
-def display_data(city_data: List[dict], lines: int=5) -> None:
+def display_data(city_data: List[OrderedDict], lines: int=5) -> None:
     '''Displays five lines of data at a time if the user specifies that he would
        like to view it.  After displaying, ask the user if he would like to see
        five more.  Continuing asking until user specifies no.
-       Note:  This function is a generator - used to remember place in the data.
 
        Args:  city_data - All data from the city file
               lines - How many lines of data to view
@@ -766,6 +769,8 @@ def display_data(city_data: List[dict], lines: int=5) -> None:
     swap_long = lambda longstr: longstr if len(longstr) <= 25 else longstr[:22] + '...'
 
     def view_data(lines=5):
+        '''Generator function to remember place in the data and print `lines`
+           at a time.'''
         for i, line in enumerate(city_data):
             # Print the header row initially and every <lines> lines
             if i % lines == 0:
@@ -804,7 +809,8 @@ def display_data(city_data: List[dict], lines: int=5) -> None:
                         '\n'.format(lines))
 
 
-def statistics(start_city: str=None, start_data: List[dict]=None) -> Tuple[str, List[dict]]:
+def statistics(start_city: str=None, start_data:
+               List[OrderedDict]=None) -> Tuple[str, List[OrderedDict]]:
     '''Calculates and prints out the descriptive statistics about a city and
        time period specified by the user via raw input.  Optionally takes a
        city data file and the loaded data to allow the user to re-run this
@@ -816,10 +822,12 @@ def statistics(start_city: str=None, start_data: List[dict]=None) -> Tuple[str, 
               start_data - All data from the city file if previously loaded
        Returns:  city file and city data to allow re-running this function
     '''
+    res: Any  # Allow multiple type assignment
     start_time = 0.0
     first_stat = True
 
     def next_stat(initial=False):
+        '''Convenience function for printing beginning of stats info.'''
         nonlocal start_time
         nonlocal first_stat
         start_time = time()
@@ -853,7 +861,7 @@ def statistics(start_city: str=None, start_data: List[dict]=None) -> Tuple[str, 
                        ''.format(city))
         if answer.strip() == '' or not 'yes'.startswith(answer.lower()):
             load_data = False
-    
+
     if load_data:
         data = load_city_file(city, verbose=True)
     else:
@@ -954,6 +962,8 @@ def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()
               time_period - Time period filter
        Returns:  None
     '''
+    res: Any  # Allow multiple type assignment
+
     if dataset == 'sample':
         test_data = ['chicago-sample.csv', 'new_york_city-sample.csv',
                      'washington-sample.csv']
@@ -961,7 +971,7 @@ def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()
         test_data = [CHI, NYC, WAS]
     else:
         sys.exit('Error:  Unexpected dataset "{}" - expecting "sample" or "prod".'.format(
-                dataset))
+                 dataset))
 
     for city in test_data:
         print('\nStatistics for {}\n{}'.format(city, time_period))
@@ -1001,7 +1011,7 @@ def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()
 def main(args: List[str]) -> None:
     '''Entry point for direct script invocation.  Allows calling main statistics
        function or test function.
-       
+
        Args:  arguments from command line invocation as collected by sys
        Returns:  None
     '''
