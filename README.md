@@ -1,5 +1,5 @@
-# [Udacity](https://www.udacity.com/) [DAND](https://www.udacity.com/course/data-analyst-nanodegree--nd002) Projects
+# [Udacity](https://www.udacity.com/) [Data Analyst NanoDegree](https://www.udacity.com/course/data-analyst-nanodegree--nd002) Projects
 
-## [Project 1 - Explore Weather Trends](tree/master/Proj1)
-## [Project 2 - Explore US Bikeshare Data](tree/master/Proj2)
+* [Project 1 - Explore Weather Trends](Proj1)
+* [Project 2 - Explore US Bikeshare Data](Proj2)
 
