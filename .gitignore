@@ -1,0 +1,16 @@
+# General ignore list
+# More specifics go in projects directories
+
+# Vim temp files
+*.swp
+
+# Python object code cache
+__pycache__/
+
+# MyPy cache
+.mypy_cache/
+
+# Top Level PDF Cheatsheets
+conda-cheatsheet.pdf
+Python_Matplotlib_Cheat_Sheet.pdf
+
