@@ -3,18 +3,9 @@
 # Data files - too big
 *.csv
 
-# Vim temp files
-*.swp
-
 # Archive
 *.zip
 
 # Raw data directory
 raw/
-
-# Python object code cache
-__pycache__/
-
-# MyPy cache
-.mypy_cache/
 
