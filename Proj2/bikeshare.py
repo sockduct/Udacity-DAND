@@ -53,6 +53,9 @@ def get_city() -> str:
             return NYC
         elif city == '3' or 'washington'.startswith(city.lower()):
             return WAS
+        # Surreptitious test data!
+        elif city == '4' or 'sample'.startswith(city.lower()):
+            return 'chicago-sample.csv'
         else:
             print('\nPlease enter 1) Chicago, 2) New York, or 3) Washington.')
 
@@ -90,7 +93,7 @@ def get_time_period() -> TimePeriodFilter:
 
         print('\n{}'.format(time_period))
         answer = input('OK? (Yes or No):  ')
-        if 'yes'.startswith(answer.lower()):
+        if 'yes'.startswith(answer.lower()) or 'ok'.startswith(answer.lower()):
             break
 
     return time_period
@@ -235,7 +238,7 @@ def set_weekday(time_period: TimePeriodFilter) -> None:
                 break
         else:
             res = parse_weekday(weekday.strip())
-            if res:
+            if res is not None:
                 time_period.weekday_start = res
                 time_period.weekday_end = res
                 break

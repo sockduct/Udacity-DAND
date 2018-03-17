@@ -1,7 +1,9 @@
-# DAND Project 2 - Explore US Bikeshare Data
+# [DAND](https://www.udacity.com/course/data-analyst-nanodegree--nd002) Project 2 - Explore US Bikeshare Data
 
 ## Project Purpose and Notes
 This project uses Python to explore data related to bike share systems for three major cities in the United States--**Chicago**, **New York City**, and **Washington**. The program reads in the specified CSV data file and answers interesting questions about it by computing descriptive statistics. This program also supports direct interaction by allowing the user to choose the city file and optionally specify a time period filter.
+
+This project was created and tested on Windows 7 64bit using Python 3.6.4 64bit.  [Python Type Hinting](https://docs.python.org/3/library/typing.html) was used to show argument and return types.  Types were/can be validated with [mypy](http://mypy-lang.org/) (pip install mypy).
 
 ## Installation and Requirements
 * Install [Python](https://www.python.org/downloads/)
@@ -28,10 +30,10 @@ This project uses Python to explore data related to bike share systems for three
 * README (this file) and well commented code
 
 ## Project Solution Layout
-* bikeshare.py - main program, read in user specified data file, allow specification of time period filter, tabulate statistics and show results
-* rndcsvsmpl.py - used to create random sample of 10,000 entries for each of the data files; allows for rapid testing as loading the actual data files can take minutes
-* timeperiod.py - holds classes for time period filter (all possible ways user can filter data) and time period results (all possible months, weeks, weekdays, and hours to allow for occurrence counting)
-* util.py - generic utility functions
+* [bikeshare.py](bikeshare.py) - main program, read in user specified data file, allow specification of time period filter, tabulate statistics and show results
+* [rndcsvsmpl.py](rndcsvsmpl.py) - used to create random sample of 10,000 entries for each of the data files; allows for rapid testing as loading the actual data files can take minutes
+* [timeperiod.py](timeperiod.py) - holds classes for time period filter (all possible ways user can filter data) and time period results (all possible months, weeks, weekdays, and hours to allow for occurrence counting)
+* [util.py](util.py) - generic utility functions
 
 ## Example Project Output
 ```
