@@ -12,7 +12,9 @@
 ################################################################################
 # To do:
 #===============================================================================
-# * Anything else?
+# * trip_duration - convert the results (res_total, res_av) to days-hours-mins-
+#                   secs and (hours-)mins-secs; update display in statistics
+#                   and test
 ################################################################################
 
 # System Imports:
