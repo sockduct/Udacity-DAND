@@ -12,16 +12,25 @@
 ################################################################################
 # To do:
 #===============================================================================
-# * trip_duration - convert the results (res_total, res_av) to days-hours-mins-
-#                   secs and (hours-)mins-secs; update display in statistics
-#                   and test
+# * No current planned improvements - feel free to open an issue for suggestions
+################################################################################
+
+################################################################################
+# Notes:
+# Q) Why didn't you use pandas?
+# A) The original intent of this assignment was to show how much work it was
+#    to use the csv stdlib as opposed to pandas (which is introduced later in
+#    the program).  However, there is some value in limiting yourself to just
+#    the Python stdlib.  Some programs include Python as an embedded automation
+#    engine but only allow the stdlib - no 3rd party libraries are allowed.
+#    Thus, I found this a useful exercise.
 ################################################################################
 
 # System Imports:
 from calendar import monthrange
 from collections import OrderedDict
 from csv import DictReader
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import sys
 from time import time
@@ -29,7 +38,7 @@ from typing import Any, List, Tuple, Union
 
 # My Imports:
 from timeperiod import TimePeriodFilter, TimePeriodResult
-from util import dict_filter, dict_keyfilter, one_or_mult
+from util import dict_filter, dict_keyfilter, one_or_mult, time_str
 
 
 # Filenames - use ALL CAPS for global constants
@@ -510,7 +519,7 @@ def popular_hour(city_data: List[OrderedDict], time_period: TimePeriodFilter,
 
 # Default time_period?
 def trip_duration(city_data: List[OrderedDict], time_period: TimePeriodFilter,
-                  verbose: bool=False) -> Tuple[float, float]:
+                  verbose: bool=False) -> Tuple[timedelta, float]:
     '''Determine total trip duration and average trip duration during time period
        filter.
        Answer question:  What is the total trip duration and average trip duration?
@@ -537,7 +546,9 @@ def trip_duration(city_data: List[OrderedDict], time_period: TimePeriodFilter,
         print('trip_duration/results - total:  {:,.2f}, average:  {:,.2f}, records '
               'in time period:  {:,}'.format(res_total, res_avg, res_count))
 
-    return res_total, res_avg
+    # Total number of seconds is large, store it in a datetime object that
+    # determines the number of days and seconds
+    return timedelta(seconds=res_total), res_avg
 
 
 def popular_stations(city_data: List[OrderedDict], time_period: TimePeriodFilter,
@@ -905,8 +916,10 @@ def statistics(start_city: str=None, start_data:
     # What is the total trip duration and average trip duration?
     res = trip_duration(data, time_period, verbose=False)
     stat_time(start_time)
-    print('The total trip duration is:  {:,.2f} seconds'.format(res[0]))
-    print('The average trip duration is:  {:,.2f} seconds'.format(res[1]))
+    total_dur = time_str(res[0])
+    avg_dur = time_str(res[1])
+    print('The total trip duration is:  {}'.format(total_dur))
+    print('The average trip duration is:  {}'.format(avg_dur))
 
     next_stat()
     # What is the most popular start station and most popular end station?
@@ -991,8 +1004,10 @@ def test(dataset: str='sample', time_period: TimePeriodFilter=TimePeriodFilter()
         res = popular_hour(data, time_period, verbose=True)
         print('-->The most popular hour is:  {}'.format(res))
         res = trip_duration(data, time_period, verbose=True)
-        print('-->The total trip duration is:  {:,.2f} seconds'.format(res[0]))
-        print('-->The average trip duration is:  {:,.2f} seconds'.format(res[1]))
+        total_dur = time_str(res[0])
+        avg_dur = time_str(res[1])
+        print('-->The total trip duration is:  {}'.format(total_dur))
+        print('-->The average trip duration is:  {}'.format(avg_dur))
         res = popular_stations(data, time_period, verbose=True)
         print('-->The most popular start stations is:  {}'.format(res[0]))
         print('-->The most popular end stations is:  {}'.format(res[1]))

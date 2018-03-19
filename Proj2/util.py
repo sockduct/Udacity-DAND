@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
+'''Various utility functions leveraged by bikeshare.  Should be useful
+   elsewhere too.'''
+
 # System Imports:
+from datetime import timedelta
 import sys
 from typing import Any, Union
 
@@ -43,4 +47,50 @@ def one_or_mult(d: dict, tgt_val: int, periods: Any=None) -> Union[str, tuple]:
                     return k
 
     sys.exit('Error: {} not found in any of the keys!'.format(tgt_val))
+
+
+def time_str(timeobj: Union[timedelta, float, int]) -> str:
+    '''Take a datetime.timedelta object or a float and convert it to a string
+       of the form w days, x hours, y minutes, z seconds where variables with
+       a value of 0 are omitted.'''
+    timestr = ''
+
+    if not isinstance(timeobj, timedelta):
+        newtime = timedelta(seconds=timeobj)
+    else:
+        newtime = timeobj
+
+    days = newtime.days
+    # Integer seconds
+    isecs = newtime.seconds
+    msecs = newtime.microseconds / 1_000_000
+    mins, isecs = divmod(isecs, 60)
+    hours, mins = divmod(mins, 60)
+    secs = isecs + msecs
+
+    if days:
+        if days == 1:
+            timestr += '1 day, '
+        else:
+            timestr += '{:,} days, '.format(days)
+    if hours:
+        if hours == 1:
+            timestr += '1 hour, '
+        else:
+            timestr += '{} hours, '.format(hours)
+    if mins:
+        if mins == 1:
+            timestr += '1 minutes, '
+        else:
+            timestr += '{} minutes, '.format(mins)
+    if timestr and not secs:
+        # Removing trailing ', '
+        timestr = timestr[:-2]
+    else:
+        if .996 <= secs <= 1.005:
+            timestr += '1 second'
+        else:
+            timestr += '{:.2f} seconds'.format(secs)
+
+    return timestr
 
