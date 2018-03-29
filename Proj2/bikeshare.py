@@ -12,7 +12,15 @@
 ################################################################################
 # To do:
 #===============================================================================
-# * No current planned improvements - feel free to open an issue for suggestions
+# * Re-factor focusing on eliminating duplicate code/making useful generics
+# ** e.g., timeperiod.py:  in the __init__, initialize the days_of_month using
+#                          a loop instead of typing all 31 entries of the map
+# ** e.g., think about how to make the interactive prompt more generic - the
+#          logic is pretty similar and should not require repeating itself
+# * Add better testing - perhaps unit tests or some pytest integration
+# * Support dynamic field definition (e.g. if the dataset is slightly changed,
+#   some column(s) are/is not available), the program can adapt to the new data
+#   structure by updating a config file
 ################################################################################
 
 ################################################################################
