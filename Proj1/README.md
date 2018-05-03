@@ -45,5 +45,5 @@ In this project, you will analyze local and global temperature data and compare 
 * [Moving Average Example.xlsx](Moving%20Average%20Example.xlsx) - Example of calculating moving averages
 
 ## License
-[MIT License](license.txt)
+[MIT License](LICENSE)
 

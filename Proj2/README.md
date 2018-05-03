@@ -134,5 +134,5 @@ C:\GHRepos\Udacity-DAND\Proj2>
 ```
 
 ## License
-[MIT License](license.txt)
+[MIT License](LICENSE)
 
