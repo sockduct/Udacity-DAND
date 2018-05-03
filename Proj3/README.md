@@ -33,8 +33,8 @@ This project was created and tested on Windows 7 64bit using Python 3.6.4 32bit,
  * Analysis will be performed and documented in a Jupyter Notebook
 
 ## Project Solution Documents
-* [Project 3 - Investigate TMDb.ipynb](Project 3 - Investigate TMDb.ipynb) - Jupyter Notebook for project
-* [Project 3 - Investigate TMDb.html](Project 3 - Investigate TMDb.html) - Jupyter Notebook in Web (HTML) format
+* [Project 3 - Investigate TMDb.ipynb](Project%203%20-%20Investigate%20TMDb.ipynb) - Jupyter Notebook for project
+* [Project 3 - Investigate TMDb.html](Project%203%20-%20Investigate%20TMDb.html) - Jupyter Notebook in Web (HTML) format
 
 ## License
 [MIT License](license.txt)
