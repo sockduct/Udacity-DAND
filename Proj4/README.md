@@ -1,7 +1,7 @@
 # [DAND](https://www.udacity.com/course/data-analyst-nanodegree--nd002) Project 4 - Analyze A/B Test Results
 
 ## Project Purpose and Notes
-A/B tests are very commonly performed by data analysts and data scientists. It is important to get some practice working with the difficulties of these.  For this project, you will be working to understand the results of an A/B test run by an e-commerce website. Your goal is to work through this notebook to help the company understand if they should implement the new page, keep the old page, or perhaps run the experiment longer to make their decision.
+A/B tests are very commonly performed by data analysts and data scientists. It is important to get some practice working with the difficulties of these.  For this project, the goal is to understand the results of an A/B test run by an e-commerce website. Work through this notebook to help the company understand if they should implement the new page, keep the old page, or perhaps run the experiment longer to make their decision.
 
 This project uses NumPy, Pandas, Matplotlib, and Jupyter Notebooks to analyze a dataset and communicate findings.  A dataset curated by Udacity will be utilized.
 
