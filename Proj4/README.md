@@ -32,22 +32,7 @@ This project was created and tested on Windows 10 64bit using Python 3.6.5 32bit
 * From Jupyter, open `Analyze_ab_test_results_notebook.ipynb`
 
 ## Project Requirements
-* Using the selected dataset (TMDB movie data), perform an analysis using descriptive statistics
-* Choosen questions to explore:
-  * Overall statistics from movie titles in dataset:
-    * Most popular films?
-    * Highest budget films?
-    * Highest revenue films?
-    * Highest margin films?
-    * Most successful directors?
-    * Most popular genres?
-    * Popularity of genres over time?
-    * Most successful production companies?
-    * Most popular actors/actresses?
-  * What kinds of properties are associated with high revenue movies? (dependent variable)
-    * directors, genres, production companies, cast (features with multiple values - independent variables)
-    * runtime, budget, release month (features with single value - independent variables)
- * Analysis will be performed and documented in a Jupyter Notebook
+* Using the provided notebook, complete the analysis
 
 ## Resource Attribution
 * The following resources were used in coming up with the solution for this project:
