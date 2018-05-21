@@ -3,6 +3,7 @@
 * [Project 1 - Explore Weather Trends](Proj1)
 * [Project 2 - Explore US Bikeshare Data](Proj2)
 * [Project 3 - Investigate a Dataset](Proj3)
+* [Project 4 - Analyze A/B Test Results](Proj4)
 
 <hr>
 
