@@ -1,0 +1,982 @@
+Analysis of Loan Data from Prosper by James R. Small
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(scales)  # So can use labels=comma in ggplot2 to prevent exp. numbers
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+df <- read.csv('prosperLoanData.csv', check.names=F, stringsAsFactors=F)
+```
+
+> Prosper Marketplace is a peer-to-peer lender which facilitates individuals
+loaning and/or borrowing money from each other.  This data set from March 11,
+2014 provides a view into some of these loans.  It consists of dozens of
+measures of individuals' credit worthiness as well as metrics on these loans.
+
+The raw data set has a few issues and some extraneous fields that aren't of use
+in this analysis:
+```{r echo=FALSE, First_Look}
+# Initial data summary
+str(df)  # 113,937 observations of 81 variables
+```
+Note:  Each variable/feature is explained in the Prosper Loan Data - Variable
+Definitions Excel Spreadsheet.
+
+The data is indexed by several key fields.  Looking at these, we can see there
+is duplicate data:
+```{r, Duplicate_Keys}
+length(df$ListingKey) - length(unique(df$ListingKey))
+```
+
+```{r echo=FALSE, Comments1}
+# Originally used this, but changed to using ListingKey as that's what I ended
+# up using for the primary key:
+# length(df$ListingNumber) - length(unique(df$ListingNumber))  # 871
+
+# Note - there are many missing/empty/NA values
+```
+
+```{r echo=FALSE, First_Cleanup_Pass}
+# Deal with column naming issues and types
+
+# Fix Column Names:
+names(df)[names(df) == 'ProsperRating (numeric)'] <- 'ProsperRating.numeric'
+names(df)[names(df) == 'ProsperRating (Alpha)'] <- 'ProsperRating.alpha'
+names(df)[names(df) == 'ListingCategory (numeric)'] <- 'ListingCategory.numeric'
+names(df)[names(df) == 'TradesNeverDelinquent (percentage)'] <- 'TradesNeverDelinquent.pct'
+
+# Fix column types (classes):
+# ListingCreationDate should be datetime:
+df$ListingCreationDate <- ymd_hms(df$ListingCreationDate)
+
+# Note:  CreditGrade only applicable to pre-2009 loans
+df$CreditGrade <- factor(df$CreditGrade, levels=c('AA', 'A', 'B', 'C', 'D', 'E',
+                         'HR', 'NC'), ordered=T, exclude='')
+
+# Simplify Loan Status for this Analysis
+# Collapse all past due columns into one aggregate column
+# Note:  Tried to re-write data.frame rows so that all Past Dues were
+#'Past Due', but ran out of memory - even with 32GB of RAM!
+# df[, 'LoanStatus'] <- lapply(df[, 'LoanStatus'], function(x) ifelse(startsWith(x, 'Past Due'), 'Past Due', x))
+# df$LoanStatus <- factor(df$LoanStatus, levels=c('Completed', 'Current',
+#                         'FinalPaymentInProgress', 'Cancelled',
+#                         'Past Due', 'Defaulted', 'Chargedoff'), ordered=T)
+df$LoanStatus <- factor(df$LoanStatus, levels=c('Completed', 'Current',
+                        'FinalPaymentInProgress', 'Cancelled',
+                        'Past Due (1-15 days)', 'Past Due (16-30 days)',
+                        'Past Due (31-60 days)', 'Past Due (61-90 days)',
+                        'Past Due (91-120 days)', 'Past Due (>120 days)',
+                        'Defaulted', 'Chargedoff'), ordered=T)
+
+# tdf <- df[df$LoanStatus %in% c('Past Due (1-15 days)', 'Past Due (16-30 days)',
+#                           'Past Due (31-60 days)', 'Past Due (61-90 days)',
+#                            'Past Due (91-120 days)', 'Past Due (>120 days)'), ]
+# tdf <- data.frame(table(df$LoanStatus))
+# past.due <- sum(tdf[grep('Past Due', tdf$Var1), 2])
+# tcol1 <- factor(x=c('Completed', 'Current', 'FinalPaymentInProgress',
+#                     'Cancelled', 'Past Due', 'Defaulted', 'Chargedoff'),
+#                 ordered=T)
+# tcol2 <- c(tdf$Freq[1:4], past.due, tdf$Freq[11:12])
+# tdf <- data.frame(LoanStatus=tcol1, Count=tcol2)
+
+df$ClosedDate <- ymd_hms(df$ClosedDate, truncated=3)
+# Many variables only applicable to loans originated after July 2009
+df$ProsperRating.numeric <- factor(df$ProsperRating.numeric, levels=c(7:1),
+                                   ordered=T)
+df$ProsperRating.alpha <- factor(df$ProsperRating.alpha, levels=c('AA', 'A',
+                                 'B', 'C', 'D', 'E', 'HR'), ordered=T)
+# ProsperScore supposed to be from 1-10, but 1,456 rows with 11!
+df$ListingCategory.numeric <- factor(df$ListingCategory.numeric)
+df$Occupation <- factor(df$Occupation, exclude='')
+df$EmploymentStatus <- factor(df$EmploymentStatus, levels=c('Full-time',
+                              'Self-employed', 'Employed', 'Part-time',
+                              'Retired', 'Other', 'Not available',
+                              'Not employed'), exclude='', ordered=T)
+df$IsBorrowerHomeowner <- as.logical(df$IsBorrowerHomeowner)
+df$CurrentlyInGroup <- as.logical(df$CurrentlyInGroup)
+df$DateCreditPulled <- ymd_hms(df$DateCreditPulled)
+df$FirstRecordedCreditLine <- ymd_hms(df$FirstRecordedCreditLine, truncated=3)
+# BankCardUtilization (percentage) ranges from 0 to 5.95 (and NAs!)
+# Interesting as highest value would normally be 1...
+df$IncomeRange <- factor(df$IncomeRange, levels=c('$100,000+', '$75,000-99,999',
+                         '$50,000-74,999', '$25,000-49,999', '$1-24,999', '$0',
+                         'Not employed', 'Not displayed'), ordered=T)
+df$IncomeVerifiable <- as.logical(df$IncomeVerifiable)
+df$LoanOriginationDate <- ymd_hms(df$LoanOriginationDate, truncated=3)
+# LoanOriginationQuarter:  "Q[1-4] YYYY" - if use may want to split up
+# PercentFunded is up to 1.0125, but believe should only be up to 1
+```
+
+```{r echo=FALSE, Comments2}
+# Classification - Used in loan spreadsheet for column/variable information
+# This was done once and is left here solely for reference
+# Please look at the spreadsheet "Prosper Loan Data - Variable Definitions.xlsx"
+# for additional information and to see how this was used.
+# write.table(as.data.frame(as.character(lapply(df, class))), file='types.txt',
+#                           quote=F, sep='\t', row.names=F, col.names=F)
+```
+
+```{r echo=FALSE, Second_Cleanup}
+# Deal with extraneous keys
+
+# Remove keys except ListingKey - no use for them:
+# On first iteration, retained ListingNumber, but problematic since integer type
+# value.  ListingKey is alpha-numeric and thus works much better for indexes.
+df <- within(df, rm(ListingNumber, LoanKey, GroupKey, MemberKey, LoanNumber))
+```
+
+> Note:  The process of detecting duplicates, determining which columns don't
+agree, resolving those conflicts, and updating the data set to remove the 
+duplicates is somewhat involved.  Thus I am showing the code used to carry this
+out:
+```{r, Third_Cleanup_Pass}
+# Deal with duplicates:
+# -----------------------------------------------------------------------------
+# Helper funcion - Compare all the elements of a vector
+# All the same?  Return TRUE else return FALSE
+vcmp <- function(v) {
+  # Debugging:
+  # print(paste0('Received vector of type <', class(v), '>:'))
+  # print(v)
+  # identical()  # Interesting, but for two objects not one vector
+  if (is.numeric(v)) {
+    # Can you tell this line is from Stack Overflow?
+    return(all(abs(v - mean(v)) < .Machine$double.eps ^ 0.5, na.rm=T))
+  } else {
+    return(all(v[1] == v, na.rm=T))
+  }
+}
+
+# Helper function - given data.frame and specified column, generate a unique
+# list of duplicate keys (from specified column data)
+dup.keys <- function(df, key) {
+  ind <- match(key, names(df))
+  dups <- df[duplicated(df[[key]]), ind]
+  # Prune down to unique duplicate keys:
+  return (unique(dups))
+}
+
+# Given data.frame df, find duplicate rows by column key
+# For each duplicate key, collect all rows sharing key, iterate through each 
+# column (variable) and (shallow) compare elements from each row (with vcmp).
+# Keep track of columns with differences in a list indexed by key storing
+# each (conflicting) column name and return this list upon completion.
+idx.dups <- function(df, key) {
+  dupkeys <- dup.keys(df, key)
+  dups.lst <- list()
+  
+  for (i in dupkeys) {
+    # tdf <- subset(df, get(key) == i)
+    # The more idiomatic way:
+    tdf <- df[df[[key]] == i, ]
+    for (n in names(tdf)) {
+      if (!vcmp(tdf[[n]])) {
+        dups.lst[[i]] <- c(dups.lst[[i]], n)
+      }
+    }
+  }
+  
+  return(dups.lst)
+}
+
+# Duplicate elements indexed by ListingKey
+dups.by.lk <- idx.dups(df, 'ListingKey')
+
+# Cursory inspection of results - which columns have discrepancies?
+head(dups.by.lk)
+
+# Iterate through returned list and validate ProsperScore was only difference
+# between duplicates:
+all(sapply(dups.by.lk, function(x) all(x[1] == x)))  # if TRUE - this is only difference
+
+# Be conservative - take the lowest score
+# Can't take the highest score - some have score of 11 which according to the
+# included spreadsheet is out of bounds (should be 1-10)
+# Note - function allows changing consolidation function from min to something
+# else...  Perhaps an argument could be made for mean or median.
+
+# Given data.frame df, find duplicate rows by column key
+# For each duplicate key, collect all rows sharing key
+# For dup (duplicate element), apply fun (passed function) to this column and
+# replace dup in first row with this value
+# Remove duplicate rows and return updated data.frame
+cons.dups <- function(df, key, dup, fun=min) {
+  dupkeys <- dup.keys(df, key)
+  
+  for (i in dupkeys) {
+    # Extract the vector of dups from df and apply fun to it
+    upd <- fun(df[df[[key]] == i, ][[dup]])
+    # Find the offset (column #) of dup
+    ind.dup <- match(dup, names(df))
+    df[df[[key]] == i, ][1, ind.dup] <- upd
+  }
+  
+  # Remove duplicates:
+  return (df[!duplicated(df[[key]]), ])
+}
+
+# Note - this takes a few minutes to run
+df <- cons.dups(df, 'ListingKey', 'ProsperScore')
+```
+
+Using [Investopedia.com's Understanding the Five Cs of Credit?](https://www.investopedia.com/ask/answers/040115/what-most-important-c-five-cs-credit.asp),
+to get an overview of credit analysis for loans, the variables below were
+selected for analyzing this data set:
+```{r, Feature_Selection}
+# Save the complete data set:
+dfo <- df
+
+# Use these variables to analyze data set, prune the rest:
+df <- df[c('DebtToIncomeRatio', 'IncomeVerifiable', 'StatedMonthlyIncome',
+           'EmploymentStatus', 'EmploymentStatusDuration', 'RevolvingCreditBalance',
+           'Term', 'BorrowerAPR', 'LoanOriginalAmount', 'ListingCategory.numeric',
+           'AmountDelinquent', 'CreditScoreRangeLower', 'DelinquenciesLast7Years',
+           'InvestmentFromFriendsCount', 'PublicRecordsLast10Years',
+           'Recommendations', 'IsBorrowerHomeowner', 'LoanStatus',
+           'MonthlyLoanPayment', 'ProsperRating.alpha', 'CreditGrade')]
+```
+
+> Here is the final data set with duplicates removed and types adjusted to match
+their data:
+```{r echo=FALSE, Show_Final_Dataset}
+# Descriptive Statistics/Exploration:
+str(df)
+
+# Helper function to nicely format summary data for variable
+show.sum <- function(ctg) {
+  writeLines(paste0(ctg, ':'))
+  print(summary(df[[ctg]]))
+  writeLines('')
+}
+```
+
+# Univariate Plots Section
+
+## Loan Characteristics
+
+> Loan amounts range from $1,000 - $35,000 USD:
+```{r echo=FALSE, warning=FALSE, Univariate_Plots1}
+# Histograms and Box plots:
+
+# Overview (non-negative):
+# About Loans:
+
+# Loan Original Amount in USD
+i <- 'LoanOriginalAmount'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=35, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 17000), labels=comma) + scale_x_continuous(breaks=c(1000, 5000, 10000, 15000, 20000, 25000, 30000, 35000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous(breaks=seq(0, 35000, 5000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Terms appear to be 1, 3, or 5 years
+```{r echo=FALSE, warning=FALSE, Univariate_Plots2}
+# Term in Months
+i <- 'Term'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=5, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=c(12, 36, 60)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+```
+
+> Borrower APRs range from 0 to over 50% with the average around 21%
+```{r echo=FALSE, warning=FALSE, Univariate_Plots3}
+# Borrower APR
+i <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous() + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> The loan data shows that around 10% of loans have been written off.  Roughly
+half are current, and a third have been completed.  Nearly 5% are in default,
+with the rest in final payment or late.
+```{r echo=FALSE, warning=FALSE, Univariate_Plots4}
+# Loan Status
+tdf <- data.frame(table(df$LoanStatus))
+past.due <- sum(tdf[grep('Past Due', tdf$Var1), 2])
+tcol1 <- factor(x=c('Completed', 'Current', 'FinalPaymentInProgress',
+                    'Cancelled', 'Past Due', 'Defaulted', 'Chargedoff'),
+                ordered=T)
+tcol2 <- c(tdf$Freq[1:4], past.due, tdf$Freq[11:12])
+tdf <- data.frame(LoanStatus=tcol1, Count=tcol2)
+
+# Plot Pie Chart:
+ggplot(tdf, aes(x='', y=Count, fill=LoanStatus)) + geom_bar(width=1, stat="identity") + coord_polar("y", start=0) + scale_fill_brewer(palette='Set1', type='qual') + theme(axis.title=element_blank(), axis.text=element_blank())
+
+# show.sum('LoanStatus')
+print(tdf)
+```
+
+> For listing category, the numbers correspond to the following:
+0 - Not Available, 1 - Debt Consolidation, 2 - Home Improvement, 3 - Business,
+4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 8 - Baby&Adoption,
+9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 12 - Green Loans,
+13 - Household Expenses, 14 - Large Purchases, 15 - Medical/Dental,
+16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation, 20 - Wedding Loans
+```{r echo=FALSE, warning=FALSE, Univariate_Plots4b}
+show.sum('ListingCategory.numeric')
+```
+
+## Characteristics of Borrowers
+
+> Incomes span a huge range, but the average is close to $5,000/month:
+```{r echo=FALSE, warning=FALSE, Univariate_Plots5}
+# About Borrowers:
+
+# Stated Monthly Income in USD
+i <- 'StatedMonthlyIncome'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 40000), labels=comma) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum('IncomeVerifiable')
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Roughly half of the borrowers are home owners.  The vast majority are employed
+with most of them being so for over 2 years:
+
+```{r echo=FALSE, warning=FALSE, Univariate_Plots6}
+# Employment Status Duration in Months
+i <- 'EmploymentStatusDuration'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 21000), labels=comma) + scale_x_sqrt(breaks=c(10, 80, 200, 400, 800)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum('IsBorrowerHomeowner')
+show.sum('EmploymentStatus')
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(2, 18, 48, 96, 192, 384, 768)) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Most borrowers are repaying at a rate of around $100 - $400/month though
+there are some outliers:
+```{r echo=FALSE, warning=FALSE, Univariate_Plots7}
+# Monthly Loan Payment in USD
+i <- 'MonthlyLoanPayment'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 30000), labels=comma) + scale_x_continuous(breaks=seq(0, 2500, 500)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(10, 120, 400, 800, 1500, 2300), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Most borrowers have significant revolving credit balances, from $3,000 - 
+$20,000 with some in excess of a million:
+
+```{r echo=FALSE, warning=FALSE, Univariate_Plots8}
+# Revolving Credit Balance in USD
+i <- 'RevolvingCreditBalance'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 16000), labels=comma) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Most borrowers appear to have a reasonable debt to income ratio, but there
+are some who owe more than they make.  Per Wells Fargo, a ratio of .35 or less
+is good, .36 - .49 is marginal, and .5 or higher is problematic:
+
+```{r echo=FALSE, warning=FALSE, Univariate_Plots9}
+# Debt to Income Ratio:
+i <- 'DebtToIncomeRatio'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=35, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 30000), labels=comma) + scale_x_sqrt(breaks=c(.05, .65, 2, 4, 6.5, 10)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(.03, .35, 1, 2, 4, 6.5, 10)) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Credit scores range from a little over 400 to a little under 900.  To put
+this in perspective, here's how CreditSesame.com ranks these scores:
+
+Rating | Range
+-------|------
+Excellent | 750 +
+Good | 700 - 749
+Fair | 650 - 699
+Poor | 550 - 649
+Bad | 549 -
+
+> Note:  For credit score there was an upper and lower range.  To keep things
+simple and conservative, only the lower range was selected.
+
+> Note:  ProsperRating.alpha and CreditGrade are virtually the same -
+the reason they are both included is that CreditGrade applies only to loans
+before 2009, and ProsperRating.alpha applies to loans after July, 2009.
+```{r echo=FALSE, warning=FALSE, Univariate_Plots10}
+# Credit Score Range Lower
+i <- 'CreditScoreRangeLower'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 33000), labels=comma) + scale_x_continuous(breaks=seq(0, 900, 100)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+show.sum('CreditGrade')
+show.sum('ProsperRating.alpha')
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous() + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> The overwhelming majority of borrowers did not have friends that participated
+in their loans.  The same is true for recommendations:
+
+```{r echo=FALSE, warning=FALSE, Univariate_Plots11}
+# Investment From Friends Count
+i <- 'InvestmentFromFriendsCount'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=34, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=seq(0, 35, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+
+# Recommendations
+i <- 'Recommendations'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=40, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=seq(0, 40, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+```
+
+## Problematic Loans
+
+> Most borrowers have no delinquencies.  However, some have dozens or worse:
+```{r echo=FALSE, warning=FALSE, Univariate_Plots12}
+# Problem Children:
+# Delinquencies Last 7 Years
+i <- 'DelinquenciesLast7Years'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 75000), labels=comma) + scale_x_sqrt(breaks=c(0, 1, 8, 20, 40, 67, 100)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+```
+
+> For those with delinquencies, the amount ranges from small to nearly half a
+million:
+```{r echo=FALSE, warning=FALSE, Univariate_Plots13}
+# Amount Delinquent
+i <- 'AmountDelinquent'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000)) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 500000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+writeLines(paste0(i, ':'))
+summary(df[df[[i]] > 0 & !is.na(df[[i]]), ][[i]])
+writeLines('')
+
+ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 500000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+```
+
+> Most borrowers have no public records on file (e.g., bankruptcies, tax liens,
+civil judgements).  However, some have ten or more:
+
+```{r echo=FALSE, warning=FALSE, Univariate_Plots14}
+# Public Records Last 10 Years
+i <- 'PublicRecordsLast10Years'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=39, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 90000), labels=comma) + scale_x_continuous(breaks=seq(0, 40, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+
+show.sum(i)
+```
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+> In the working data set, there are 113,066 loan records with 21 features.  
+With an average APR around 21%, these appear to be higher risk loans.  As a 
+point of reference, ValuePenguin.com says someone with excellent credit should
+be able to obtain a loan with an APR between 10.3 - 12.5%.  The most popular
+listed loan category is debt consolidation, with unavailable and other coming
+in second and third respectively.  Looking at the revolving credit balances,
+perhaps some of these loans are being used to consolidate credit card debt.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+> There are some interesting factors with these peer-to-peer loans.  Right off
+the bat, some risks jump out.  Over 8,500 loans are made to someone whose
+income isn't verifiable!  We see that some borrowers have no income, and either
+aren't employed or have an unknown employment status.  Some borrowers have an
+outstanding revolving credit balance of over 1 million dollors!  We see there
+are delinquent loans with amounts approaching half a million dollars.  In
+addition, the worst case offender has 99 delinquent loans in the past 7 years.
+Some have dozens of public records and a low or non-existent credit score.
+
+> There are many interesting facets to drill into.  How is the borrower risk
+factored into the APR?  Is it factored into the loan amount as well?  In the
+various borrower grades (from Prosper), what percentage of them default or are
+late?
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+> Borrower classification/risk, risk of default by group, impact of home
+ownership
+
+### Did you create any new variables from existing variables in the dataset?
+
+> No, with 81 original variables I had to initially work on reducing the number
+of features to a more manageable level.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+> Most of the features have huge distributions and many require scale
+transformations such as log or square root.  As documented above, I found
+duplicate observations within the data which I consolidated.
+
+
+# Bivariate Plots Section
+
+## Examining Correlated Features
+
+```{r echo=FALSE, Bivariate_Plots0}
+# Tried using a scatterplot matrix - too many features
+# write.table(as.data.frame(cor.tbl), file='cor.txt', quote=F, sep='\t')
+# writeLines('Pearson\'s r for integer/numeric observations:')
+# print(cor.tbl)
+# library(GGally)
+# ggpairs(df[, c(1, 3, 5:9, 11:16, 19)])
+
+# Instead, first find "significant" correlations and investigate those
+cor.tbl <- cor(df[, c(1, 3, 5:9, 11:16, 19)], use='pairwise.complete.obs')
+# If wanted to find correlations across complete original data set:
+# cor.tbl2 <- cor(dfo[, c(4, 7:12, 15, 20, 24:25, 27:45, 48:60, 63:76)], use='pairwise.complete.obs')
+
+# For correlation (Pearson's r) using:
+# weak:  .3 <= |r| < .5
+# moderate:  .5 <= |r| < .7
+# strong:  .7 <= |r| < 1
+# Note:  Excluding 1, because those are just the ones along the "diagonal"
+res <- which(abs(cor.tbl) > .3 & abs(cor.tbl) < 1, arr.ind=T)
+# If wanted to find correlations across complete original data set:
+# res2 <- which(abs(cor.tbl2) > .3 & abs(cor.tbl2) < 1, arr.ind=T)
+
+# Only keep "bottom half" as "top half" are duplicates:
+# Row-# > Col-# to keep "bottom half":
+res <- res[apply(res, 1, function(x) x[1] > x[2]),]
+# If wanted to find correlations across complete original data set:
+# res2 <- res2[apply(res2, 1, function(x) x[1] > x[2]),]
+
+# Create "correlation" data.frame:
+cdf <- data.frame(Correlation=0, Axis1='a', Axis2='b', stringsAsFactors=F)
+for (i in 1:nrow(res)) {
+  tm <- cor.tbl[res[i, 1], res[i, 2], drop=F]
+  cdf[i, ] <- list(tm[1, 1], dimnames(tm)[[1]], dimnames(tm)[[2]])
+}  
+
+# If wanted to find correlations across complete original data set:
+# cdf2 <- data.frame(Correlation=0, Axis1='a', Axis2='b', stringsAsFactors=F)
+# for (i in 1:nrow(res2)) {
+#   tm <- cor.tbl2[res2[i, 1], res2[i, 2], drop=F]
+#   cdf2[i, ] <- list(tm[1, 1], dimnames(tm)[[1]], dimnames(tm)[[2]])
+# }  
+
+writeLines('Potentially Interesting Correlations:')
+print(cdf)
+# If wanted to find correlations across complete original data set:
+# writeLines('----------------------------------------')
+# print(cdf2)
+```
+
+> For this plot, we see there is some (weak) correlation between the loan amount
+and the term.  12 month loans tend of be smaller.  However, most smaller loans
+are for 36 months - we can see this term dominates.  Furthermore, at the high
+end/upper half there doesn't seem to be much difference between 36 and 60 month
+loans:
+
+```{r echo=FALSE, message=FALSE, Bivariate_Plots1}
+# Plot - LoanOriginalAmount/Term, .34
+x <- cdf[1, 2]
+y <- cdf[1, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df) + geom_jitter(color='blue', alpha=.1, na.rm=T) + scale_x_continuous(breaks=c(1000, 5000, 10000, 15000, 20000, 25000, 30000, 35000), labels=comma) + scale_y_continuous(breaks=c(12, 36, 60)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+```
+
+> Here we see a weak correlation between the loan amount and the APR charged.
+The highest APRs are for the smallest loans (under $5,000 - 6,000).  Generally,
+as the amount increases, the APR tends to go down.  If we use a linear model
+(orange line), there appears to be a decent correlation.  However, if we use
+a non-linear model (red), we can see the correlation is much weaker:
+```{r echo=FALSE, message=FALSE, Bivariate_Plots2}
+# Plot - LoanOriginalAmount/BorrowerAPR, -.32
+x <- cdf[2, 2]
+y <- cdf[2, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df) + geom_point(color='blue', alpha=.05, na.rm=T) + scale_x_continuous() + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5)) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> Here there is clearly a relation between the borrower's credit score and the
+APR charged.  While it isn't a strong relationship, you can see the trend of the
+APR generally decreasing as credit score increases.  Using a linear model
+(orange), there appears to be a somewhat strong trend.  However, using a
+non-linear model (red), we can see there is a relationship, but it's a little
+murky:
+
+```{r echo=FALSE, message=FALSE, Bivariate_Plots3}
+# Eliminate credit scores of 0
+# Per https://www.nerdwallet.com/blog/finance/no-credit-score-zero-credit-score/,
+# not possible to have a credit score of 0
+# Note:
+# cor(df[df$CreditScoreRangeLower > 0, ]$CreditScoreRangeLower, df[df$CreditScoreRangeLower > 0, ]$BorrowerAPR, use='complete.obs') --> -0.4561199, slightly better correlation (before was -0.4292891)
+
+# Plot - CreditScoreRangeLower/BorrowerAPR, -.46
+x <- cdf[3, 2]
+y <- cdf[3, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df[df$CreditScoreRangeLower > 0, ]) + geom_point(color='blue', alpha=.05, na.rm=T) + scale_x_continuous() + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5)) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> Here we see a weak relationship between credit score and the loan amount.  The
+lowest scores get small(er) loans and the highest loans are only given to those
+with higher scores.  This makes sense in that with better credit a borrower is
+eligible for a larger loan.  However, the borrower won't necessarily choose to
+obtain a larger loan:
+
+```{r echo=FALSE, message=FALSE, Bivariate_Plots4}
+# Per above, not possible to have a credit score of 0
+# Note:
+# cor(df[df$CreditScoreRangeLower > 0, ]$CreditScoreRangeLower, df[df$CreditScoreRangeLower > 0, ]$LoanOriginalAmount, use='complete.obs') --> 0.3527187, slightly better correlation (before was 0.3414884)
+
+# Plot - CreditScoreRangeLower/LoanOriginalAmount, .35
+x <- cdf[4, 2]
+y <- cdf[4, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df[df$CreditScoreRangeLower > 0, ]) + geom_point(color='blue', alpha=.05, na.rm=T) + scale_x_continuous() + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5)) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> For this plot we see a strong correlation, somewhat intuitively, between the
+loan amount and the monthly repayment of that loan.  Note the three main areas:
+The first smaller group (line) that pays off there lot at a faster rate with
+higher monthly installments.  This is the highest and steepest line.  The second
+and majority group services their debt over a longer period with lower payments.
+Finally, the third and smallest group doesn't repay the loan and most likely
+default.  We see this group stay flat along the x-axis:
+```{r echo=FALSE, message=FALSE, Bivariate_Plots5}
+# Plot - MonthlyLoanPayment/LoanOriginalAmount, .93
+# Swap x and y as makes more sense that loan amount determines loan payment
+y <- cdf[5, 2]
+x <- cdf[5, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df) + geom_point(color='blue', alpha=.05, na.rm=T) + scale_x_continuous() + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5)) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> Here we see a correlation between recommendations and investment from friends.
+There is clearly some relationship, but not necessarily a strong one as
+indicated by Pearson's r.  We can see that linearly (orange line), the
+relationship is strong.  However, if we look at the non-linear relationship
+(red line), the correlation is more varied:
+
+```{r echo=FALSE, message=FALSE, Bivariate_Plots6}
+# Plot - Recommendations/InvestmentFromFriendsCount, .72
+x <- cdf[6, 2]
+y <- cdf[6, 3]
+ggplot(aes_(x=as.name(x), y=as.name(y)), data=df) + geom_point(color='blue', alpha=.8, na.rm=T) + scale_x_sqrt(breaks=c(1, 4, 10, 20, 30, 40)) + scale_y_sqrt(breaks=c(1, 4, 10, 20, 35)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> In this section, a few more plots were examined to see if there's a link
+between loan APR and various features.
+
+> Borrower APR faceted by the Loan Status - no major differences jump out here.
+One observation is that loans with an APR greater than .4 appear to have a
+higher risk of default:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots7}
+i <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~LoanStatus)
+```
+
+> Borrower APR contrasting whether or not income is verifiable - suprisingly
+there appears to be little differnce here.  At the start it appears that
+non-home owners may be a slightly higher APR.  However, this fairly quickly
+goes away and somewhat reverses at the high end coming back down the slope.
+There is a slight spike in non-homeowner borrowers around .36, but otherwise
+this does not seem to be a generally significant factor:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots8}
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_freqpoly(bins=45, aes(color=IncomeVerifiable)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+```
+
+> Borrower APR contrasting by home ownership - here too there appears to be
+little difference.  There's a small number of low APR loans at the beginning
+of the curve where non-homeowners have a lower APR - not what we'd expect.
+However, at the high end there are several high APR loans and these are only
+to non-homeowners - what we would expect:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots9}
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_freqpoly(bins=45, aes(color=IsBorrowerHomeowner)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
+```
+
+> Borrower APR faceted by employment status - the only group that stands out
+here is the NA one.  This is where nothing was entered for employment status.
+In this group, we have the highest APR loans - going all the way up to over .5:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots10}
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~EmploymentStatus)
+```
+
+> Borrower APR faceted by credit grade from Prosper (Pre-2009) - Here we see
+a clear correlation between Prosper's rating and the APR.  As the rating
+decreases, the average APR increases.  This is illustrated by a black line
+showing the mean for each group.  The exceptions being that the HR category is
+about the same as E and the NC category average is only a little higher than D
+with a different distribution:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots11}
+res <- with(df, by(BorrowerAPR, CreditGrade, mean, na.rm=T))
+
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$CreditGrade))) + geom_freqpoly(bins=45, aes(color=CreditGrade)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~CreditGrade) + geom_vline(data=filter(df, CreditGrade == 'AA'), aes(xintercept=res[['AA']])) + geom_vline(data=filter(df, CreditGrade == 'A'), aes(xintercept=res[['A']])) + geom_vline(data=filter(df, CreditGrade == 'B'), aes(xintercept=res[['B']])) + geom_vline(data=filter(df, CreditGrade == 'C'), aes(xintercept=res[['C']])) + geom_vline(data=filter(df, CreditGrade == 'D'), aes(xintercept=res[['D']])) + geom_vline(data=filter(df, CreditGrade == 'E'), aes(xintercept=res[['E']])) + geom_vline(data=filter(df, CreditGrade == 'HR'), aes(xintercept=res[['HR']])) + geom_vline(data=filter(df, CreditGrade == 'NC'), aes(xintercept=res[['NC']]))
+
+print(with(df, by(BorrowerAPR, CreditGrade, summary, na.rm=T)))
+```
+
+> Borrower APR faceted by his rating from Prosper (Post-July, 2009) - Here we
+see a revised Prosper rating system with ever clearer groupings.  As the
+borrower rating decreases, the average APR increases without exception:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots12}
+res <- with(df, by(BorrowerAPR, ProsperRating.alpha, mean, na.rm=T))
+
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha))) + geom_freqpoly(bins=45, aes(color=ProsperRating.alpha)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_vline(data=filter(df, ProsperRating.alpha == 'AA'), aes(xintercept=res[['AA']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'A'), aes(xintercept=res[['A']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'B'), aes(xintercept=res[['B']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'C'), aes(xintercept=res[['C']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'D'), aes(xintercept=res[['D']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'E'), aes(xintercept=res[['E']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'HR'), aes(xintercept=res[['HR']]))
+
+print(with(df, by(BorrowerAPR, ProsperRating.alpha, summary, na.rm=T)))
+```
+
+> Borrower delinquencies for last 7 years faceted by loan status - no useful
+pattern observed:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots13}
+i <- 'DelinquenciesLast7Years'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 40000), labels=comma) + scale_x_sqrt(breaks=c(1, 10, 25, 50, 100)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~LoanStatus)
+```
+
+> Borrower amount delinquent faceted by loan status - no useful pattern
+observed:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots14}
+i <- 'AmountDelinquent'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 50000), labels=comma) + scale_x_sqrt(breaks=c(2500, 75000, 250000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~LoanStatus)
+```
+
+> Borrower credit score faceted by credit grade from Prosper (Pre-2009) - as
+we'd expect, there's a strong correlation between the borrower's credit grade
+and the Prosper credit grade:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots15}
+i <- 'CreditScoreRangeLower'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$CreditGrade))) + geom_freqpoly(bins=45, aes(color=CreditGrade)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 4000), labels=comma) + scale_x_continuous(breaks=seq(0, 880, 160)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~CreditGrade)
+```
+
+> Borrower credit score faceted by Prosper ranking from Prosper (Post-July,
+2009) - in contrast to Propser's credit grade score, Prosper's ranking is more
+nuanced.  While there's a correlation betwen the borrower's credit score and
+the ranking (highlighted by the black line showing the mean score), the groups
+are much more spread out than with the credit grade.  Clearly there are other
+factors baked into the ranking than just the credit score:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots16}
+res <- with(df, by(CreditScoreRangeLower, ProsperRating.alpha, mean, na.rm=T))
+
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha))) + geom_freqpoly(bins=15, aes(color=ProsperRating.alpha)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 4000), labels=comma) + scale_x_continuous(breaks=seq(600, 880, 80)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_vline(data=filter(df, ProsperRating.alpha == 'AA'), aes(xintercept=res[['AA']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'A'), aes(xintercept=res[['A']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'B'), aes(xintercept=res[['B']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'C'), aes(xintercept=res[['C']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'D'), aes(xintercept=res[['D']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'E'), aes(xintercept=res[['E']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'HR'), aes(xintercept=res[['HR']]))
+
+print(with(df, by(CreditScoreRangeLower, ProsperRating.alpha, summary, na.rm=T)))
+```
+
+# Bivariate Analysis
+
+### Investigating Correlations
+
+> For the selected features, all significant correlations (|Pearson's r| > .3)
+were investigated.  The most popular term appears to be 36 months.  Loosely
+speaking, larger loan amounts tend to have lower APRs.  Not suprisingly, we see
+that borrowers with higher credit scores tend to get better (lower) APRs.
+Furthermore, it appears that the larger loans are only made available to
+borrowers with a better credit score.  There's a strong relationship between the
+loan amount and the monthly repayment amount - also not very surprising.
+Finally, we see that there's a relationship between recommendations and
+investment from friends.  Perhaps the borrowers friends both recommend and
+invest in them?
+
+### Additional Exploration
+
+> In addition to exploring correlated features, several other aspects were
+examined to look for what influences the APR charged.  Many of the examined
+features revealed little to no relationship to the APR.  The Prosper ratings
+unsurprisingly showed correlation to the APR.  Examing these same Prosper
+ratings versus the borrower credit score was less clear cut.  The older credit
+grade ranking showed a strong correlation to borrower's credit score.  However,
+the newer ranking system appears to include other factors with credit score
+only being only one of many.
+
+
+# Multivariate Plots Section
+
+> Borrower credit score vs. APR faceted by Prosper rating colored by term -
+here we see as the rating decreases, in addition to the APR going up, the term
+of the loan also decreases:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots1}
+i <- 'CreditScoreRangeLower'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=Term)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> Borrower credit score vs. APR faceted by Prosper rating colored by loan
+amount - as with the above plot, as the rating decreases the APR goes up and
+the amount of the loan also decreases:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots2}
+i <- 'CreditScoreRangeLower'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=LoanOriginalAmount)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+```
+
+> Borrower stated monthly income vs. APR faceted by Prosper rating colored by
+if income is verifiable - recalling that the vast majority of borrowers stated
+their income is verifiable, the unverifiable ones appear to be mostly randomly
+distributed.  The one exception is borrowers with no income appear to virtually
+all have this designation.  In addition, while it's not readily apparent in
+these plots, there is some correlation between income and rating - see the
+summary statistics following the plot.  In addition, we see that while the
+first three rating groups are similar, as we cross into group C the income
+dispersion increases:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots3}
+i <- 'StatedMonthlyIncome'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=IncomeVerifiable)) + scale_x_log10(labels=comma) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha, scales='free_x') + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
+
+print(with(df, by(StatedMonthlyIncome, ProsperRating.alpha, summary, na.rm=T)))
+writeLines('\nMonthly Income Dispersion, measured by standard deviation:')
+print(with(df, by(StatedMonthlyIncome, ProsperRating.alpha, sd, na.rm=T)))
+```
+
+> Borrower debt-to-income ratio vs. APR faceted by Prosper rating, colored by
+home ownership - the density of non-homeowners appears to increase as the
+rating decreases.  Note - while there starts off appearing to be a weak
+correlation between borrower debt-to-income ratio and rating, the trend
+disappears after group C:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots4}
+i <- 'DebtToIncomeRatio'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=IsBorrowerHomeowner)) + scale_x_sqrt(breaks=c(.35, 2, 5, 10), labels=comma) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha)
+
+print(with(df, by(DebtToIncomeRatio, ProsperRating.alpha, summary, na.rm=T)))
+writeLines('\nDebt to Income Ratio Dispersion, measured by standard deviation:')
+print(with(df, by(DebtToIncomeRatio, ProsperRating.alpha, sd, na.rm=T)))
+```
+
+> Borrower revolving credit balance vs. APR faceted by Prosper rating, colored
+by employment status - the only thing that really seems to stand out here is
+the distribution in the HR category is quite a bit different from the other.
+There amount of borrowers with a status of "Employed" is quite a bit lower in
+this group, though the dominant group is still "Full-time.":
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots5}
+i <- 'RevolvingCreditBalance'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=EmploymentStatus)) + scale_x_log10(labels=comma) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha)
+
+print(with(df, by(RevolvingCreditBalance, ProsperRating.alpha, summary, na.rm=T)))
+```
+
+# Multivariate Analysis
+
+> Originally it appeared that most of the loans were more high risk.  However,
+upon further investigation this isn't the case.  Borrowers with a high Propser
+ranking receive a reasonable APR.  We also see that longer term and larger loan
+amounts are typically reserved for higher rated borrowers.  One surprise is
+that borrower credit score is not strongly correlated with their rating.  While
+there is clearly a relationship, there are obviously many other factors at play
+in building the borrowers rating.  Income appears to play a small role in the
+rating.  However, debt to income ratio and revolving credit debt don't appear
+to have much influence in the rating.  Perhaps this may be because they're
+already factored in to the borrower's credit score.  Not being a home owner
+seems to be correlated with lower scores.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+
+> Credit scores range from a little over 400 to a little under 900.  As a
+point of reference, here's how CreditSesame.com ranks these scores:
+
+Rating | Range
+-------|------
+Excellent | 750 +
+Good | 700 - 749
+Fair | 650 - 699
+Poor | 550 - 649
+Bad | 549 -
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_One}
+i <- 'CreditScoreRangeLower'
+res <- with(df, by(CreditScoreRangeLower, ProsperRating.alpha, mean, na.rm=T))
+
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha))) + geom_freqpoly(bins=15, aes(color=ProsperRating.alpha)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 5000), labels=comma) + scale_x_continuous(breaks=seq(600, 880, 80)) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha) + geom_vline(data=filter(df, ProsperRating.alpha == 'AA'), aes(xintercept=res[['AA']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'A'), aes(xintercept=res[['A']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'B'), aes(xintercept=res[['B']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'C'), aes(xintercept=res[['C']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'D'), aes(xintercept=res[['D']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'E'), aes(xintercept=res[['E']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'HR'), aes(xintercept=res[['HR']])) + xlab('Borrower Credit Score') + ylab('Count of Borrowers') + labs(caption='[Vertical black bars show average credit score]') + labs(subtitle='--Post July, 2009--') + labs(title='Borrower Credit Score faceted by Prosper Rating') + labs(color='Prosper Rating')
+```
+
+### Description One
+
+When lending or borrowing from Prosper, borrower rating plays a large part in
+determing the loan APR.  As shown here, while there is some correlation between
+rating and credit score, many other factors are considered.
+
+### Plot Two
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Two}
+i <- 'CreditScoreRangeLower'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=Term)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T) + xlab('Borrower Credit Score') + ylab('Loan APR') + labs(caption='[Orange line shows linear trend, Red line shows nonlinear trend]') + labs(subtitle='Colored by Loan Term in Months, Faceted by Prosper Rating (Post July, 2009)') + labs(title='Loan APR for Borrower Credit Scores')
+```
+
+### Description Two
+
+Here we see loan rates versus borrower credit scores.  Each subplot groups by
+Prosper rating with the point color showing the loan term length.  Trend lines
+show the clear correlation between rating and APR.
+
+### Plot Three
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Three}
+i <- 'LoanOriginalAmount'
+j <- 'StatedMonthlyIncome'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=LoanStatus)) + scale_x_continuous(labels=comma) + scale_y_log10(labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha, scales='free_y') + scale_color_brewer(type='div', palette='Spectral') + geom_smooth(method='lm', color='green', na.rm=T) + geom_smooth(color='yellow', na.rm=T) + xlab('Loan Amount') + ylab('Borrower Monthly Income') + labs(caption='[Green line shows linear trend, Yellow line shows nonlinear trend]') + labs(subtitle='Colored by Loan Status, Faceted by Prosper Rating (Post July, 2009)') + labs(title='Borrower Monthly Income for Loan Amount') + labs(color='Loan Status')
+```
+
+### Description Three
+
+Here we borrower monthly income versus loan amount.  Each subplot groups by
+Prosper rating with the point color showing the loan status.  Trend lines show
+the average income for the loan.  The average income for groups AA - B is
+similar.  We see average income fall off a little for C - E, but the big trend
+here is a huge increase in dispersion.  The HR group has slightly lower average
+income than the first row but the greatest income dispersion by far.  We can
+also clearly see that as the rating decreases, the loan amount follows suit.
+
+------
+
+# Reflection
+
+> This data set contains 81 features!  While this is a fantastic amount of data
+to explore, at first it was a big overwhelming.  I spent some time learning how
+lenders assess credit worthiness.  Based on this, I pruned the data set down to
+21 features.  In addition, when first looking at the data set, I found some
+issues.  First of all, there are five different key fields.  Out of those I
+selected one to use.  Next I found that there were duplicates rows.  I
+developed some functions to find the duplicates, determine what the
+discrepancies between them were, and combine them into unique rows.  I also
+went through all the features and changed the data type to the best match.
+I think this was a great exercise as this is something I can leverage for
+future data sets.  To help explore correlated features, I also wrote a function
+which looks at correlation values and only returns the ones with at least a
+weak correlation.  This saves a lot of time and is important when dealing with
+dozens of features.  Using a scatterplot matrix probably only makes sense for
+small data sets - say ten or fewer features.
+
+> When examining Prosper's rating system, there's evidence that the company
+learned over time.  While the original credit grade closely maps to credit
+scores, the revised rating system is only marginally correlated with them.
+Using all of their data, Prosper refined their rating system.  I explored
+what was correlated with loan APRs and Prosper ratings.  While I identified
+some of the factors, there are clearly more at play.  It would be interesting
+to explore additional features from the original data set and see what other
+correlations are present.  It would also be interesting to bring some more
+advanced techniques to bear to groups various features and see how they predict
+things like loan repayment or default.
