@@ -4,6 +4,8 @@
 * [Project 2 - Explore US Bikeshare Data](Proj2)
 * [Project 3 - Investigate a Dataset](Proj3)
 * [Project 4 - Analyze A/B Test Results](Proj4)
+* [Project 5 - Test a Perceptual Phenomenon](Proj5)
+* [Project 6 - Explore and Summarize Data](Proj6)
 
 <hr>
 
