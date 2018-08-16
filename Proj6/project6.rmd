@@ -22,7 +22,7 @@ The raw data set has a few issues and some extraneous fields that aren't of use
 in this analysis:
 ```{r echo=FALSE, First_Look}
 # Initial data summary
-str(df)  # 113,937 observations of 81 variables
+str(df, list.len=5)  # 113,937 observations of 81 variables
 ```
 Note:  Each variable/feature is explained in the Prosper Loan Data - Variable
 Definitions Excel Spreadsheet.
@@ -97,6 +97,9 @@ df$EmploymentStatus <- factor(df$EmploymentStatus, levels=c('Full-time',
                               'Self-employed', 'Employed', 'Part-time',
                               'Retired', 'Other', 'Not available',
                               'Not employed'), exclude='', ordered=T)
+# Already have "Not available" category for EmploymentStatus, consolidate NAs here:
+df$EmploymentStatus[is.na(df$EmploymentStatus)] <- 'Not available'
+
 df$IsBorrowerHomeowner <- as.logical(df$IsBorrowerHomeowner)
 df$CurrentlyInGroup <- as.logical(df$CurrentlyInGroup)
 df$DateCreditPulled <- ymd_hms(df$DateCreditPulled)
@@ -266,40 +269,46 @@ show.sum <- function(ctg) {
 # Overview (non-negative):
 # About Loans:
 
-# Loan Original Amount in USD
+# Loan Original Amount in USD - included to show range of the loans
 i <- 'LoanOriginalAmount'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=35, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 17000), labels=comma) + scale_x_continuous(breaks=c(1000, 5000, 10000, 15000, 20000, 25000, 30000, 35000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
-
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous(breaks=seq(0, 35000, 5000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
 ```
 
-> Terms appear to be 1, 3, or 5 years
+> Terms appear to be 1, 3, or 5 years.  Knowing this we can also examine loans
+by term:
+
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots2}
-# Term in Months
+# Term in Months - included to show range of loan terms
 i <- 'Term'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=5, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=c(12, 36, 60)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
+
+writeLines('Loan Amounts by Term:')
+i <- 'LoanOriginalAmount'
+j <- 'Term'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_continuous(breaks=seq(0, 35000, 5000), labels=comma) + scale_x_continuous(breaks=c(12, 36, 60)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 ```
 
 > Borrower APRs range from 0 to over 50% with the average around 21%
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots3}
-# Borrower APR
+# Borrower APR - included to show range of APRs charged to borrowers
 i <- 'BorrowerAPR'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
-
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous() + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
 ```
 
 > The loan data shows that around 10% of loans have been written off.  Roughly
 half are current, and a third have been completed.  Nearly 5% are in default,
-with the rest in final payment or late.
+with the rest in final payment or late.  This blog entry - [Understanding Loan
+Statuses](https://www.orchardplatform.com/blog/understanding-loan-statuses/)
+provides additional clarity on this terminology.
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots4}
-# Loan Status
+# Loan Status - included to show how loans fare overall
 tdf <- data.frame(table(df$LoanStatus))
 past.due <- sum(tdf[grep('Past Due', tdf$Var1), 2])
 tcol1 <- factor(x=c('Completed', 'Current', 'FinalPaymentInProgress',
@@ -308,44 +317,61 @@ tcol1 <- factor(x=c('Completed', 'Current', 'FinalPaymentInProgress',
 tcol2 <- c(tdf$Freq[1:4], past.due, tdf$Freq[11:12])
 tdf <- data.frame(LoanStatus=tcol1, Count=tcol2)
 
+# Must avoid the dreaded pie chart per reviewer!  :-)  But non-technical people really like them...
 # Plot Pie Chart:
-ggplot(tdf, aes(x='', y=Count, fill=LoanStatus)) + geom_bar(width=1, stat="identity") + coord_polar("y", start=0) + scale_fill_brewer(palette='Set1', type='qual') + theme(axis.title=element_blank(), axis.text=element_blank())
+# ggplot(tdf, aes(x='', y=Count, fill=LoanStatus)) + geom_bar(width=1, stat="identity") + coord_polar("y", start=0) + scale_fill_brewer(palette='Accent', type='qual') + theme(axis.title=element_blank(), axis.text=element_blank())
+# writeLines('\n')
 
-# show.sum('LoanStatus')
-print(tdf)
+# Plot Bar Chart:
+# Change factor order for plot
+tdf$LoanStatus <- ordered(tdf$LoanStatus, levels=c("Current", "Completed",
+                          "Chargedoff", "Defaulted", "Past Due",
+                          "FinalPaymentInProgress", "Cancelled"))
+ggplot(tdf, aes(x=LoanStatus, y=Count, fill=LoanStatus)) + geom_bar(width=0.8, stat="identity") + scale_fill_brewer(palette='Accent', type='qual') + geom_text(aes(label=(paste0(round((Count/sum(Count) * 100), digits=2), '%')), vjust=-0.6)) + geom_text(aes(label=(paste0('(', Count, ')')), vjust=+1.6)) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15)) + scale_y_continuous(breaks=seq(0, 60000, 10000), labels=comma)
+
+# show.sum('LoanStatus')  # Not needed, shown in bar chart
+# print(tdf[order(tdf$Count, decreasing=T), ])
 ```
 
-> For listing category, the numbers correspond to the following:
-0 - Not Available, 1 - Debt Consolidation, 2 - Home Improvement, 3 - Business,
-4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 8 - Baby&Adoption,
-9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 12 - Green Loans,
-13 - Household Expenses, 14 - Large Purchases, 15 - Medical/Dental,
-16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation, 20 - Wedding Loans
+> How are the loans used?  Examining the listing categories on a log scale we
+see the following:
+
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots4b}
-show.sum('ListingCategory.numeric')
+tdf <- data.frame(Category=c('Not Available', 'Debt Consolidation', 'Home Improvement', 'Business', 'Personal Loan', 'Student Use', 'Auto', 'Other', 'Baby & Adoption', 'Boat', 'Cosmetic Procedure', 'Engagement Ring', 'Green Loans', 'Household Expenses', 'Large Purchases', 'Medical/Dental', 'Motorcycle', 'RV', 'Taxes', 'Vacation', 'Wedding Loans'), Count=summary(df$ListingCategory.numeric))
+
+ggplot(aes(x=Count, y=reorder(Category, Count)), data=tdf) + geom_point(color='blue', size=5) + scale_x_log10(breaks=c(50, 200, 800, 4000, 15000, 60000), labels=comma) + theme_bw() + theme(panel.grid.major.x=element_line(color='gray', size=0.5), panel.grid.major.y=element_line(colour="gray", linetype="dashed")) + ylab('Listing Category')
 ```
 
 ## Characteristics of Borrowers
 
-> Incomes span a huge range, but the average is close to $5,000/month:
+> Incomes span a huge range, but the average is close to $5,000/month.  If we
+segment that by employment status though, we can see that part-time and the
+unemployed groups are quite a bit below this average:
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots5}
 # About Borrowers:
 
-# Stated Monthly Income in USD
+# Stated Monthly Income in USD - included to show range of borrower income
 i <- 'StatedMonthlyIncome'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 40000), labels=comma) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum('IncomeVerifiable')
 show.sum(i)
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Income by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 > Roughly half of the borrowers are home owners.  The vast majority are employed
-with most of them being so for over 2 years:
+with most of them being so for over 2 years.  Again though, if we segment by
+employment status we see that part time workers quite a bit lower than the
+other groups.  This makes intuitive sense.  Interestingly, the "unemployed"
+group, while lower still has a positive number.  So perhaps this represents
+past employment for them?
 
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots6}
-# Employment Status Duration in Months
+# Employment Status Duration in Months - included to show range of borrower employment duration
 i <- 'EmploymentStatusDuration'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 21000), labels=comma) + scale_x_sqrt(breaks=c(10, 80, 200, 400, 800)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
@@ -353,50 +379,68 @@ show.sum('IsBorrowerHomeowner')
 show.sum('EmploymentStatus')
 show.sum(i)
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(2, 18, 48, 96, 192, 384, 768)) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_sqrt(breaks=c(2, 18, 48, 96, 192, 384, 768)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 ```
 
 > Most borrowers are repaying at a rate of around $100 - $400/month though
-there are some outliers:
+there are some outliers.  Examing by employment status, we see that part-time,
+retired, and not available have a median repayment amount near the bottom of
+this range with many in their groups repayinging under $100/month:
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots7}
-# Monthly Loan Payment in USD
+# Monthly Loan Payment in USD - included to show range of borrower loan repayment amounts
 i <- 'MonthlyLoanPayment'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 30000), labels=comma) + scale_x_continuous(breaks=seq(0, 2500, 500)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(10, 120, 400, 800, 1500, 2300), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Loan Repayment by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_sqrt(breaks=c(10, 120, 400, 800, 1500, 2300), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 > Most borrowers have significant revolving credit balances, from $3,000 - 
-$20,000 with some in excess of a million:
+$20,000 with some in excess of a million.  Examing by employment status shows
+the part-time group has the lowest interquartile-range of revolving debt.  The
+highest levels of debt seem to be limited to the full-time, self-employed, and
+employed groups:
 
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots8}
-# Revolving Credit Balance in USD
+# Revolving Credit Balance in USD - included to show borrower revolving (e.g., typically credit card) debt
 i <- 'RevolvingCreditBalance'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 16000), labels=comma) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Revolving Credit Balance by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 1000000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 > Most borrowers appear to have a reasonable debt to income ratio, but there
 are some who owe more than they make.  Per Wells Fargo, a ratio of .35 or less
-is good, .36 - .49 is marginal, and .5 or higher is problematic:
+is good, .36 - .49 is marginal, and .5 or higher is problematic.  The
+unemployed group also stands out for its fairly evenly distributed ratios all
+the way from good to truly awful:
 
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots9}
-# Debt to Income Ratio:
+# Debt to Income Ratio - included to show borrower ratio (compared to what's "good")
 i <- 'DebtToIncomeRatio'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=35, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 30000), labels=comma) + scale_x_sqrt(breaks=c(.05, .65, 2, 4, 6.5, 10)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_sqrt(breaks=c(.03, .35, 1, 2, 4, 6.5, 10)) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Debt-to-Income Ratio by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_sqrt(breaks=c(.03, .35, 1, 2, 4, 6.5, 10)) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
-> Credit scores range from a little over 400 to a little under 900.  To put
-this in perspective, here's how CreditSesame.com ranks these scores:
+> Credit scores range from a little over 400 to a little under 900.  We see the
+Not available group not only has the worst interquartile-range, but is also the
+only group with scores of 0.  To put the scores in perspective, here's how
+CreditSesame.com ranks them:
 
 Rating | Range
 -------|------
@@ -406,14 +450,15 @@ Fair | 650 - 699
 Poor | 550 - 649
 Bad | 549 -
 
-> Note:  For credit score there was an upper and lower range.  To keep things
-simple and conservative, only the lower range was selected.
+Notes:
 
-> Note:  ProsperRating.alpha and CreditGrade are virtually the same -
-the reason they are both included is that CreditGrade applies only to loans
-before 2009, and ProsperRating.alpha applies to loans after July, 2009.
+* For credit score there was an upper and lower range.  To keep things simple\
+and conservative, only the lower range was selected.
+* ProsperRating.alpha and CreditGrade are virtually the same - the reason they\
+are both included is that CreditGrade applies only to loans before 2009, and\
+ProsperRating.alpha applies to loans after July, 2009.
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots10}
-# Credit Score Range Lower
+# Credit Score Range Lower - included to show borrower credit score (compared to what's "good")
 i <- 'CreditScoreRangeLower'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 33000), labels=comma) + scale_x_continuous(breaks=seq(0, 900, 100)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
@@ -421,20 +466,23 @@ show.sum(i)
 show.sum('CreditGrade')
 show.sum('ProsperRating.alpha')
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_continuous() + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Credit Score by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_continuous(breaks=seq(0, 880, 120)) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 > The overwhelming majority of borrowers did not have friends that participated
 in their loans.  The same is true for recommendations:
 
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots11}
-# Investment From Friends Count
+# Investment From Friends Count - included to show if friends invest
 i <- 'InvestmentFromFriendsCount'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=34, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=seq(0, 35, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
 
-# Recommendations
+# Recommendations - included to show if recommendations play a significant role
 i <- 'Recommendations'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=40, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000), labels=comma) + scale_x_continuous(breaks=seq(0, 40, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
@@ -443,39 +491,53 @@ show.sum(i)
 
 ## Problematic Loans
 
-> Most borrowers have no delinquencies.  However, some have dozens or worse:
+> Most borrowers have no delinquencies.  However, some have dozens or worse.
+Of note - the Not available group is significantly worse than the others:
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots12}
 # Problem Children:
-# Delinquencies Last 7 Years
+# Delinquencies Last 7 Years - included to show borrower delinquency count
 i <- 'DelinquenciesLast7Years'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 75000), labels=comma) + scale_x_sqrt(breaks=c(0, 1, 8, 20, 40, 67, 100)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 > For those with delinquencies, the amount ranges from small to nearly half a
-million:
+million.  Breaking this down by employment status doesn't seem to reveal
+additional insight:
+
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots13}
-# Amount Delinquent
+# Amount Delinquent - included to show borrower delinquency amount
 i <- 'AmountDelinquent'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000)) + scale_x_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 500000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 writeLines(paste0(i, ':'))
 summary(df[df[[i]] > 0 & !is.na(df[[i]]), ][[i]])
-writeLines('')
 
-ggplot(aes_(x=1, y=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 500000), labels=comma) + scale_x_continuous(breaks=1) + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.title.x=element_blank(), axis.text.x=element_blank())
+writeLines('Amount Delinquent by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 100000, 500000), labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 ```
 
 > Most borrowers have no public records on file (e.g., bankruptcies, tax liens,
-civil judgements).  However, some have ten or more:
+civil judgements).  However, some have ten or more.  Breaking this down by
+employment status, we see that Retired, Other, and Not Available are
+significantly worse than other groups:
 
 ```{r echo=FALSE, warning=FALSE, Univariate_Plots14}
-# Public Records Last 10 Years
+# Public Records Last 10 Years - included to show number of public records borrower has
 i <- 'PublicRecordsLast10Years'
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=39, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000, 90000), labels=comma) + scale_x_continuous(breaks=seq(0, 40, 5)) + theme(panel.grid.major=element_line(color='gray', size=0.5))
 
 show.sum(i)
+
+writeLines('Public Records in Last 10 Years by Employment Status:')
+j <- 'EmploymentStatus'
+
+ggplot(aes_(x=as.name(j), y=as.name(i), group=as.name(j)), data=subset(df, !is.na(df[[i]]))) + geom_boxplot(color='blue', outlier.shape=21) + scale_y_continuous() + theme(panel.grid.major=element_line(color='gray', size=0.5), axis.text.x=element_text(angle=15))
 ```
 
 # Univariate Analysis
@@ -672,6 +734,15 @@ ggplot(aes_(x=as.name(x), y=as.name(y)), data=df) + geom_point(color='blue', alp
 > In this section, a few more plots were examined to see if there's a link
 between loan APR and various features.
 
+> Borrower APR faceted by Employment Status - while no major differences are
+apparent, the Not available group has the highest APRs, and the unemployed
+have a pronounced spike of APRs at the higher end (around .35):
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots6b}
+i <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]))) + geom_histogram(bins=30, color='blue', fill='orange') + scale_y_log10(breaks=c(1, 10, 100, 1000, 10000), labels=comma) + scale_x_continuous(breaks=seq(0, .5, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~EmploymentStatus)
+```
+
 > Borrower APR faceted by the Loan Status - no major differences jump out here.
 One observation is that loans with an APR greater than .4 appear to have a
 higher risk of default:
@@ -826,6 +897,18 @@ j <- 'BorrowerAPR'
 ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=LoanOriginalAmount)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T)
 ```
 
+> Borrower credit score vs. APR faceted by Prosper rating colored by employment
+status.  The dominant employment groups are employed and full time.  While a
+little subtle, as the rating worsens, we can see the plots get more colorful.
+This is a result of including more of the groups which appear to have a higher
+incidence of problems:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots2b}
+i <- 'CreditScoreRangeLower'
+j <- 'BorrowerAPR'
+ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=EmploymentStatus)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T) + scale_color_brewer(palette='Paired', type='qual')
+```
+
 > Borrower stated monthly income vs. APR faceted by Prosper rating colored by
 if income is verifiable - recalling that the vast majority of borrowers stated
 their income is verifiable, the unverifiable ones appear to be mostly randomly
@@ -914,7 +997,7 @@ res <- with(df, by(CreditScoreRangeLower, ProsperRating.alpha, mean, na.rm=T))
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha))) + geom_freqpoly(bins=15, aes(color=ProsperRating.alpha)) + scale_y_log10(breaks=c(1, 10, 100, 1000, 5000), labels=comma) + scale_x_continuous(breaks=seq(600, 880, 80)) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha) + geom_vline(data=filter(df, ProsperRating.alpha == 'AA'), aes(xintercept=res[['AA']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'A'), aes(xintercept=res[['A']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'B'), aes(xintercept=res[['B']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'C'), aes(xintercept=res[['C']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'D'), aes(xintercept=res[['D']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'E'), aes(xintercept=res[['E']])) + geom_vline(data=filter(df, ProsperRating.alpha == 'HR'), aes(xintercept=res[['HR']])) + xlab('Borrower Credit Score') + ylab('Count of Borrowers') + labs(caption='[Vertical black bars show average credit score]') + labs(subtitle='--Post July, 2009--') + labs(title='Borrower Credit Score faceted by Prosper Rating') + labs(color='Prosper Rating')
 ```
 
-### Description One
+### About Plot One
 
 When lending or borrowing from Prosper, borrower rating plays a large part in
 determing the loan APR.  As shown here, while there is some correlation between
@@ -927,7 +1010,7 @@ j <- 'BorrowerAPR'
 ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=Term)) + scale_x_continuous(breaks=seq(600, 880, 80)) + scale_y_continuous(breaks=seq(0.05, .45, .1)) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha) + geom_smooth(method='lm', color='orange', na.rm=T) + geom_smooth(color='red', na.rm=T) + xlab('Borrower Credit Score') + ylab('Loan APR') + labs(caption='[Orange line shows linear trend, Red line shows nonlinear trend]') + labs(subtitle='Colored by Loan Term in Months, Faceted by Prosper Rating (Post July, 2009)') + labs(title='Loan APR for Borrower Credit Scores')
 ```
 
-### Description Two
+### About Plot Two
 
 Here we see loan rates versus borrower credit scores.  Each subplot groups by
 Prosper rating with the point color showing the loan term length.  Trend lines
@@ -940,7 +1023,7 @@ j <- 'StatedMonthlyIncome'
 ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) & !is.na(df$ProsperRating.alpha) & !is.na(df[[j]]))) + geom_point(aes(color=LoanStatus)) + scale_x_continuous(labels=comma) + scale_y_log10(labels=comma) + theme(panel.grid.major=element_line(color='gray', size=0.5), panel.grid.minor=element_line(color='gray', size=0.25)) + facet_wrap(~ProsperRating.alpha, scales='free_y') + scale_color_brewer(type='div', palette='Spectral') + geom_smooth(method='lm', color='green', na.rm=T) + geom_smooth(color='yellow', na.rm=T) + xlab('Loan Amount') + ylab('Borrower Monthly Income') + labs(caption='[Green line shows linear trend, Yellow line shows nonlinear trend]') + labs(subtitle='Colored by Loan Status, Faceted by Prosper Rating (Post July, 2009)') + labs(title='Borrower Monthly Income for Loan Amount') + labs(color='Loan Status')
 ```
 
-### Description Three
+### About Plot Three
 
 Here we borrower monthly income versus loan amount.  Each subplot groups by
 Prosper rating with the point color showing the loan status.  Trend lines show
@@ -954,7 +1037,7 @@ also clearly see that as the rating decreases, the loan amount follows suit.
 
 # Reflection
 
-> This data set contains 81 features!  While this is a fantastic amount of data
+This data set contains 81 features!  While this is a fantastic amount of data
 to explore, at first it was a big overwhelming.  I spent some time learning how
 lenders assess credit worthiness.  Based on this, I pruned the data set down to
 21 features.  In addition, when first looking at the data set, I found some
@@ -970,7 +1053,7 @@ weak correlation.  This saves a lot of time and is important when dealing with
 dozens of features.  Using a scatterplot matrix probably only makes sense for
 small data sets - say ten or fewer features.
 
-> When examining Prosper's rating system, there's evidence that the company
+When examining Prosper's rating system, there's evidence that the company
 learned over time.  While the original credit grade closely maps to credit
 scores, the revised rating system is only marginally correlated with them.
 Using all of their data, Prosper refined their rating system.  I explored

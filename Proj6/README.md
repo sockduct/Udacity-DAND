@@ -7,7 +7,7 @@ This project uses ggplot2, dplyr, lubridate, and the scales packages as well as 
 
 This project was created and tested on Windows 10 64bit using R 3.5.1 with the following libraries:
 * dplyr 0.7.6
-* ggplot2 2.2.1
+* ggplot2 3.0.0
 * lubridate 1.7.4
 * scales 0.5.0
 In addition, the use of RStudio is strongly recommended.  Version 1.1.453 was used to create and run the R Markdown "notebook" along with:
@@ -35,6 +35,7 @@ In addition, the use of RStudio is strongly recommended.  Version 1.1.453 was us
     * knitr documentation/wiki
     * RStudio documentation and references on R Markdown and knitr options
     * Referenced many sections from "The Art of R Programming"
+    * Referenced many chapters from "R Graphics Cookbook"
 
 ## Project Solution Documents
 * [Project 6 - R Markdown Notebook](project6.rmd) - R Markdown Notebook for Project
