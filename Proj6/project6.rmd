@@ -350,6 +350,9 @@ tdf <- data.frame(LoanStatus=tcol1, Count=tcol2)
 #  + theme(axis.title=element_blank(), axis.text=element_blank())
 # writeLines('\n')
 
+# Reviewer didn't like using color here because it doesn't encode additional
+# information.  However, I believe it looks more "aesthetically pleasing".
+# Right answer probably depends on the target audience...
 # Plot Bar Chart:
 # Change factor order for plot
 tdf$LoanStatus <- ordered(tdf$LoanStatus, levels=c("Current", "Completed",
@@ -1002,6 +1005,9 @@ with a different distribution:
 ```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots11}
 res <- with(df, by(BorrowerAPR, CreditGrade, mean, na.rm=T))
 
+# Reviewer didn't like using color here because it doesn't encode additional
+# information.  However, I believe it looks more "aesthetically pleasing".
+# Right answer probably depends on the target audience...
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) &
 		!is.na(df$CreditGrade))) +
 	geom_freqpoly(bins=45, aes(color=CreditGrade)) +
@@ -1035,6 +1041,9 @@ borrower rating decreases, the average APR increases without exception:
 ```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots12}
 res <- with(df, by(BorrowerAPR, ProsperRating.alpha, mean, na.rm=T))
 
+# Reviewer didn't like using color here because it doesn't encode additional
+# information.  However, I believe it looks more "aesthetically pleasing".
+# Right answer probably depends on the target audience...
 ggplot(aes_(x=as.name(i)), data=subset(df, !is.na(df[[i]]) &
 		!is.na(df$ProsperRating.alpha))) +
 	geom_freqpoly(bins=45, aes(color=ProsperRating.alpha)) +
@@ -1404,7 +1413,8 @@ ggplot(aes_(x=as.name(i), y=as.name(j)), data=subset(df, !is.na(df[[i]]) &
 	scale_x_continuous(labels=comma) +
 	scale_y_log10(labels=comma) +
 	theme(panel.grid.major=element_line(color='gray', size=0.5),
-		panel.grid.minor=element_line(color='gray', size=0.25)) +
+		panel.grid.minor=element_line(color='gray', size=0.25),
+		axis.text.x=element_text(angle=30)) +
 	facet_wrap(~ProsperRating.alpha, scales='free_y') +
 	scale_color_brewer(type='div', palette='Spectral') +
 	geom_smooth(method='lm', color='green', na.rm=T) +
