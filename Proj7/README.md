@@ -4,6 +4,7 @@
 Using Python and its libraries for data wrangling.  This will consist of gathering data from a variety of sources and in a variety of formats, assessing its quality and tidiness, and then cleaning it.  Document wrangling efforts in a Jupyter Notebook provided by Udacity, plus showcase them through analyses and visualizations using Python (and its libraries) and/or SQL. Use a tweet archive provided to and curated by Udacity from WeRateDogs (@dog_rates).
 
 This project was created and tested on Windows 10 64bit using Python 3.6.5 with the following libraries:
+
 *Package* | *Version*
 ----------|----------
 json | 2.0.9 (3.6.5 stdlib)
