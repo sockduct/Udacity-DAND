@@ -6,6 +6,7 @@
 * [Project 4 - Analyze A/B Test Results](Proj4)
 * [Project 5 - Test a Perceptual Phenomenon](Proj5)
 * [Project 6 - Explore and Summarize Data](Proj6)
+* [Project 7 - Wrangle and Analyze Data](Proj7)
 
 <hr>
 
