@@ -67,8 +67,10 @@ tweepy | (Must get latest version from GitHub, v3.6.0 from PyPI not new enough!)
     * Some use of Python for Data Analysis, 2e
 
 ## Project Solution Documents
+* [Data Analysis/Visualizations Report](act_report.pdf) - Brief Writeup (act_report.pdf) analyzing findings and plot summaries for this Project
+* [Data Wrangling Report](wrangle_report.pdf) - Brief Writeup (wrangle_report.pdf) of Data Wrangling for this Project
 * [get_tweets](get_tweets.py) - Python module for retrieving Tweets
-* [Project 7 - Jupyter Notebook](wrangle_act.ipynb) - Jupyter Notebook for Project
+* [Project 7 - Jupyter Notebook](wrangle_act.ipynb) - Jupyter Notebook (wrangle_act.ipynb) for Project
 * [README (What you're reading!)](README.md)
 * [secrets](secrets.exmpl) - Secrets initialization file, rename extension to .cfg and populate with your Twitter API secrets
 * [store_ex](store_ex.py) - Quick run through of Python stdlib persistant storage options
