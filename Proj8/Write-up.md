@@ -1,6 +1,6 @@
 # [Project 8 - Create a Tableau Story](https://github.com/sockduct/Udacity-DAND/tree/master/Proj8) Write-up
 
-## [Tableau Public Workbook - US Flight Stats, Story](https://public.tableau.com/profile/james.small#!/vizhome/USFlightStatsRevised/USFlightsStory)
+## [Tableau Public Workbook - US Flight Stats, Story](https://public.tableau.com/profile/james.small#!/vizhome/USFlightStatsRev3/USFlightsStory)
 
 ## Summary
 This public Tableau story showcases US flights in a nutshell for 2008.  Beginning with flight destinations, then flight volumes, followed by flight cancellations and diversions, and ending with flight delays.  Each section allows filtering, and highlighting is used where it makes sense.  For each view, a brief description is provided.
@@ -19,6 +19,10 @@ This public Tableau story showcases US flights in a nutshell for 2008.  Beginnin
     * Cancel-Cause worksheet - added number for Security column so it doesn't seem like it's 0
     * Diversions Worksheets - Had True/False, filtered out False, only want to show actual diversions, for Destination and Carrier diverions pointed out worst ones
     * US Flights Story - volume dashboard shows best/worst, cancellations/diversions/delays dashboards point out worst airport/carrier
+  * Based on Udacity project reviewer feedback the following additional changes were made:
+    * Revised map view - made airport size proportion actually correct based on flight volume and added to legend, fixed color to make dots stand out more, added additional filters and detail for hovering
+    * Completely redid cancellations, diversions, and late departures - made everything relative (percentage of overall volume), change initial count bar graph to one that shows relative occurrences per month, added filter based on airport volume to allow screening out small volume sites, used airport/carrier names instead of codes for main graphs (codes retained in hover view)
+    * Cancellations - moved additional details on specific causes of cancellations into hover view for the airports/carriers
 
 ## Feedback
 * Comments from Syed S., Fellow DAND Student
@@ -35,4 +39,5 @@ This public Tableau story showcases US flights in a nutshell for 2008.  Beginnin
 
 ## Previous Versions of the Tableau Workbook - US Flight Stats, Story
 * [Original](https://public.tableau.com/profile/james.small#!/vizhome/USFlightStats/USFlightsStory)
+* [First Revision](https://public.tableau.com/profile/james.small#!/vizhome/USFlightStatsRevised/USFlightsStory)
 
